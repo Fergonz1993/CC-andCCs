@@ -1,0 +1,163 @@
+{
+  "name": "claude-multi-agent-coordinator",
+  "displayName": "Claude Multi-Agent Coordinator",
+  "description": "VS Code extension for managing multi-agent coordination tasks",
+  "version": "1.0.0",
+  "publisher": "claude-code",
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "activationEvents": [
+    "onStartupFinished"
+  ],
+  "main": "./out/extension.js",
+  "contributes": {
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "claude-coordinator",
+          "title": "Claude Coordinator",
+          "icon": "resources/coordinator.svg"
+        }
+      ]
+    },
+    "views": {
+      "claude-coordinator": [
+        {
+          "id": "taskList",
+          "name": "Tasks",
+          "contextualTitle": "Task Management"
+        },
+        {
+          "id": "workerStatus",
+          "name": "Workers",
+          "contextualTitle": "Worker Status"
+        },
+        {
+          "id": "discoveries",
+          "name": "Discoveries",
+          "contextualTitle": "Shared Discoveries"
+        }
+      ]
+    },
+    "commands": [
+      {
+        "command": "claude-coordinator.refreshTasks",
+        "title": "Refresh Tasks",
+        "icon": "$(refresh)"
+      },
+      {
+        "command": "claude-coordinator.createTask",
+        "title": "Create Task",
+        "icon": "$(add)"
+      },
+      {
+        "command": "claude-coordinator.claimTask",
+        "title": "Claim Task",
+        "icon": "$(play)"
+      },
+      {
+        "command": "claude-coordinator.completeTask",
+        "title": "Complete Task",
+        "icon": "$(check)"
+      },
+      {
+        "command": "claude-coordinator.failTask",
+        "title": "Fail Task",
+        "icon": "$(error)"
+      },
+      {
+        "command": "claude-coordinator.viewTaskDetails",
+        "title": "View Task Details"
+      },
+      {
+        "command": "claude-coordinator.initCoordination",
+        "title": "Initialize Coordination"
+      },
+      {
+        "command": "claude-coordinator.addDiscovery",
+        "title": "Add Discovery"
+      }
+    ],
+    "menus": {
+      "view/title": [
+        {
+          "command": "claude-coordinator.refreshTasks",
+          "when": "view == taskList",
+          "group": "navigation"
+        },
+        {
+          "command": "claude-coordinator.createTask",
+          "when": "view == taskList",
+          "group": "navigation"
+        }
+      ],
+      "view/item/context": [
+        {
+          "command": "claude-coordinator.claimTask",
+          "when": "view == taskList && viewItem == availableTask",
+          "group": "inline"
+        },
+        {
+          "command": "claude-coordinator.completeTask",
+          "when": "view == taskList && viewItem == inProgressTask",
+          "group": "inline"
+        },
+        {
+          "command": "claude-coordinator.failTask",
+          "when": "view == taskList && viewItem == inProgressTask",
+          "group": "inline"
+        }
+      ]
+    },
+    "configuration": {
+      "title": "Claude Multi-Agent Coordinator",
+      "properties": {
+        "claude-coordinator.coordinationDir": {
+          "type": "string",
+          "default": ".coordination",
+          "description": "Path to the coordination directory"
+        },
+        "claude-coordinator.agentId": {
+          "type": "string",
+          "default": "vscode-agent",
+          "description": "Unique identifier for this agent"
+        },
+        "claude-coordinator.autoRefresh": {
+          "type": "boolean",
+          "default": true,
+          "description": "Automatically refresh task list"
+        },
+        "claude-coordinator.refreshInterval": {
+          "type": "number",
+          "default": 5000,
+          "description": "Auto-refresh interval in milliseconds"
+        }
+      }
+    }
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run compile",
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./",
+    "pretest": "npm run compile && npm run lint",
+    "lint": "eslint src --ext ts",
+    "test": "vscode-test"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "@types/vscode": "^1.85.0",
+    "@typescript-eslint/eslint-plugin": "^6.0.0",
+    "@typescript-eslint/parser": "^6.0.0",
+    "eslint": "^8.0.0",
+    "typescript": "^5.3.0",
+    "@vscode/test-cli": "^0.0.4",
+    "@vscode/test-electron": "^2.3.8"
+  },
+  "dependencies": {
+    "chokidar": "^3.5.3"
+  }
+}

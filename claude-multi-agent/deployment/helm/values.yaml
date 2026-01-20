@@ -1,0 +1,281 @@
+# Default values for claude-multiagent
+# This is a YAML-formatted file.
+
+# Global settings
+global:
+  imageRegistry: ""
+  imagePullSecrets: []
+  storageClass: ""
+
+# Namespace configuration
+namespace:
+  create: true
+  name: claude-multiagent
+  labels:
+    istio-injection: enabled
+
+# Common configuration
+common:
+  labels: {}
+  annotations: {}
+
+# ============================================================================
+# Option A - File-Based Coordination
+# ============================================================================
+optionA:
+  enabled: true
+  replicaCount: 1
+
+  image:
+    repository: claude-multiagent/option-a
+    tag: "latest"
+    pullPolicy: IfNotPresent
+
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+
+  persistence:
+    enabled: true
+    storageClass: ""
+    size: 10Gi
+
+  serviceAccount:
+    create: true
+    name: ""
+
+# ============================================================================
+# Option B - MCP Server
+# ============================================================================
+optionB:
+  enabled: true
+  replicaCount: 2
+
+  image:
+    repository: claude-multiagent/option-b
+    tag: "latest"
+    pullPolicy: IfNotPresent
+
+  service:
+    type: ClusterIP
+    port: 3000
+
+  resources:
+    requests:
+      cpu: 200m
+      memory: 256Mi
+    limits:
+      cpu: 1000m
+      memory: 1Gi
+
+  autoscaling:
+    enabled: true
+    minReplicas: 2
+    maxReplicas: 10
+    targetCPUUtilizationPercentage: 70
+    targetMemoryUtilizationPercentage: 80
+
+  persistence:
+    enabled: true
+    storageClass: ""
+    size: 5Gi
+
+# ============================================================================
+# Option C - External Orchestrator
+# ============================================================================
+optionC:
+  enabled: true
+  replicaCount: 3
+
+  image:
+    repository: claude-multiagent/option-c
+    tag: "latest"
+    pullPolicy: IfNotPresent
+
+  service:
+    type: ClusterIP
+    port: 8080
+    metricsPort: 9090
+
+  config:
+    maxWorkers: 3
+    taskTimeout: 600
+    clusterMode: true
+
+  resources:
+    requests:
+      cpu: 500m
+      memory: 512Mi
+    limits:
+      cpu: 2000m
+      memory: 2Gi
+
+  autoscaling:
+    enabled: true
+    minReplicas: 3
+    maxReplicas: 20
+    targetCPUUtilizationPercentage: 60
+    targetMemoryUtilizationPercentage: 70
+    customMetrics:
+      - type: Pods
+        pods:
+          metric:
+            name: pending_tasks
+          target:
+            type: AverageValue
+            averageValue: "20"
+
+  persistence:
+    coordination:
+      enabled: true
+      storageClass: ""
+      size: 10Gi
+    workspace:
+      enabled: true
+      storageClass: ""
+      size: 50Gi
+
+  podDisruptionBudget:
+    enabled: true
+    minAvailable: 2
+
+  priorityClassName: high-priority
+
+# ============================================================================
+# Ingress Configuration
+# ============================================================================
+ingress:
+  enabled: true
+  className: nginx
+  annotations:
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/proxy-body-size: "50m"
+  hosts:
+    - host: claude-coordination.example.com
+      paths:
+        - path: /
+          pathType: Prefix
+          service: orchestrator
+  tls:
+    - secretName: claude-tls-secret
+      hosts:
+        - claude-coordination.example.com
+
+# ============================================================================
+# Redis Configuration (for distributed state)
+# ============================================================================
+redis:
+  enabled: true
+  architecture: standalone
+  auth:
+    enabled: true
+    existingSecret: coordinator-secrets
+    existingSecretPasswordKey: REDIS_PASSWORD
+  master:
+    persistence:
+      enabled: true
+      size: 10Gi
+  replica:
+    replicaCount: 0
+
+# ============================================================================
+# PostgreSQL Configuration (optional persistent storage)
+# ============================================================================
+postgresql:
+  enabled: false
+  auth:
+    existingSecret: coordinator-secrets
+    secretKeys:
+      adminPasswordKey: POSTGRES_PASSWORD
+      userPasswordKey: POSTGRES_PASSWORD
+  primary:
+    persistence:
+      enabled: true
+      size: 20Gi
+
+# ============================================================================
+# Istio Service Mesh Configuration
+# ============================================================================
+istio:
+  enabled: false
+  gateway:
+    enabled: true
+  virtualService:
+    enabled: true
+  peerAuthentication:
+    mode: STRICT
+  destinationRules:
+    enabled: true
+
+# ============================================================================
+# Multi-Region Configuration
+# ============================================================================
+multiRegion:
+  enabled: false
+  regionId: "us-east-1"
+  regionName: "US East (N. Virginia)"
+  isPrimary: true
+  replicationTargets: []
+  failoverEnabled: true
+
+# ============================================================================
+# Resource Quotas and Limits
+# ============================================================================
+resourceQuotas:
+  enabled: true
+  cpu:
+    requests: "20"
+    limits: "40"
+  memory:
+    requests: "40Gi"
+    limits: "80Gi"
+  storage: "200Gi"
+  pods: "50"
+
+limitRanges:
+  enabled: true
+  container:
+    default:
+      cpu: "1"
+      memory: "1Gi"
+    defaultRequest:
+      cpu: "100m"
+      memory: "256Mi"
+    max:
+      cpu: "4"
+      memory: "8Gi"
+    min:
+      cpu: "50m"
+      memory: "64Mi"
+
+# ============================================================================
+# Monitoring and Observability
+# ============================================================================
+monitoring:
+  enabled: true
+  prometheus:
+    enabled: true
+    scrapeInterval: 15s
+  grafana:
+    enabled: false
+
+# ============================================================================
+# Secrets Configuration
+# ============================================================================
+secrets:
+  create: true
+  anthropicApiKey: ""  # Set via --set or external secrets
+  redisPassword: ""
+  postgresPassword: ""
+
+# ============================================================================
+# Network Policies
+# ============================================================================
+networkPolicy:
+  enabled: true
+  allowExternalAccess: true
+  allowClaudeApi: true

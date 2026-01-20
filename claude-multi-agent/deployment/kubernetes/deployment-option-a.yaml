@@ -1,0 +1,112 @@
+# Deployment for Option A - File-Based Coordination
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: coordinator-file-based
+  namespace: claude-multiagent
+  labels:
+    app.kubernetes.io/name: claude-multiagent
+    app.kubernetes.io/component: coordinator-file-based
+    app.kubernetes.io/version: "1.0.0"
+spec:
+  replicas: 1  # File-based coordination works best with single writer
+  selector:
+    matchLabels:
+      app: coordinator-file-based
+  template:
+    metadata:
+      labels:
+        app: coordinator-file-based
+        app.kubernetes.io/name: claude-multiagent
+        app.kubernetes.io/component: coordinator-file-based
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8080"
+        sidecar.istio.io/inject: "true"
+    spec:
+      serviceAccountName: claude-coordinator
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        fsGroup: 1000
+      containers:
+        - name: coordinator
+          image: claude-multiagent/option-a:latest
+          imagePullPolicy: IfNotPresent
+          envFrom:
+            - configMapRef:
+                name: coordinator-config
+            - secretRef:
+                name: coordinator-secrets
+          ports:
+            - name: metrics
+              containerPort: 8080
+              protocol: TCP
+          volumeMounts:
+            - name: coordination-data
+              mountPath: /data/.coordination
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "256Mi"
+            limits:
+              cpu: "500m"
+              memory: "512Mi"
+          livenessProbe:
+            exec:
+              command:
+                - python
+                - -c
+                - "import os; exit(0 if os.path.exists('/data/.coordination') else 1)"
+            initialDelaySeconds: 10
+            periodSeconds: 30
+            timeoutSeconds: 10
+            failureThreshold: 3
+          readinessProbe:
+            exec:
+              command:
+                - python
+                - -c
+                - "import os; exit(0 if os.path.exists('/data/.coordination/tasks.json') else 1)"
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3
+      volumes:
+        - name: coordination-data
+          persistentVolumeClaim:
+            claimName: coordination-data-pvc
+      affinity:
+        nodeAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              preference:
+                matchExpressions:
+                  - key: node-type
+                    operator: In
+                    values:
+                      - coordinator
+      tolerations:
+        - key: "coordinator"
+          operator: "Equal"
+          value: "true"
+          effect: "NoSchedule"
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: coordinator-file-based
+  namespace: claude-multiagent
+  labels:
+    app.kubernetes.io/name: claude-multiagent
+    app.kubernetes.io/component: coordinator-file-based
+spec:
+  selector:
+    app: coordinator-file-based
+  ports:
+    - name: metrics
+      port: 8080
+      targetPort: 8080
+  type: ClusterIP

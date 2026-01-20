@@ -1,0 +1,164 @@
+# Docker Compose for Claude Multi-Agent Coordination System
+# Provides local development and testing environment
+
+version: '3.8'
+
+services:
+  # Option A - File-Based Coordination
+  coordinator-file-based:
+    build:
+      context: ../../
+      dockerfile: deployment/docker/Dockerfile.option-a
+    container_name: claude-coordinator-a
+    volumes:
+      - coordination-data:/data/.coordination
+      - ./workspace:/workspace
+    environment:
+      - COORDINATION_DIR=/data/.coordination
+    networks:
+      - claude-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python", "-c", "import os; exit(0 if os.path.exists('/data/.coordination') else 1)"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Option B - MCP Server
+  mcp-server:
+    build:
+      context: ../../
+      dockerfile: deployment/docker/Dockerfile.option-b
+    container_name: claude-mcp-server
+    ports:
+      - "3000:3000"
+    volumes:
+      - mcp-state:/data/.coordination
+    environment:
+      - NODE_ENV=production
+      - COORDINATION_DIR=/data/.coordination
+      - MCP_SERVER_PORT=3000
+    networks:
+      - claude-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "node", "-e", "console.log('ok')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Option C - Orchestrator
+  orchestrator:
+    build:
+      context: ../../
+      dockerfile: deployment/docker/Dockerfile.option-c
+    container_name: claude-orchestrator
+    ports:
+      - "8080:8080"
+    volumes:
+      - orchestrator-data:/data/.coordination
+      - ./workspace:/data/workspace
+    environment:
+      - COORDINATION_DIR=/data/.coordination
+      - ORCHESTRATOR_WORKSPACE=/data/workspace
+      - ORCHESTRATOR_MAX_WORKERS=3
+      - ORCHESTRATOR_TASK_TIMEOUT=600
+    networks:
+      - claude-network
+    restart: unless-stopped
+    depends_on:
+      - redis
+    healthcheck:
+      test: ["CMD", "python", "-c", "print('healthy')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Redis for distributed state (Option C scalability)
+  redis:
+    image: redis:7-alpine
+    container_name: claude-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+    command: redis-server --appendonly yes
+    networks:
+      - claude-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # PostgreSQL for persistent state storage
+  postgres:
+    image: postgres:15-alpine
+    container_name: claude-postgres
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    environment:
+      - POSTGRES_DB=claude_coordination
+      - POSTGRES_USER=claude
+      - POSTGRES_PASSWORD=claude_secret
+    networks:
+      - claude-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U claude -d claude_coordination"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Prometheus for metrics collection
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: claude-prometheus
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus-data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.enable-lifecycle'
+    networks:
+      - claude-network
+    restart: unless-stopped
+
+  # Grafana for metrics visualization
+  grafana:
+    image: grafana/grafana:latest
+    container_name: claude-grafana
+    ports:
+      - "3001:3000"
+    volumes:
+      - grafana-data:/var/lib/grafana
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+      - GF_USERS_ALLOW_SIGN_UP=false
+    networks:
+      - claude-network
+    restart: unless-stopped
+    depends_on:
+      - prometheus
+
+networks:
+  claude-network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.28.0.0/16
+
+volumes:
+  coordination-data:
+  mcp-state:
+  orchestrator-data:
+  redis-data:
+  postgres-data:
+  prometheus-data:
+  grafana-data:

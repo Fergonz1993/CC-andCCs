@@ -1,0 +1,126 @@
+# Storage Classes and Persistent Volume Claims for Claude Multi-Agent System
+# Supports cloud-native storage backends (adv-scale-007)
+
+---
+# Storage Class for SSD-backed storage (recommended for production)
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: claude-fast-storage
+  labels:
+    app.kubernetes.io/name: claude-multiagent
+    app.kubernetes.io/component: storage
+provisioner: kubernetes.io/gce-pd  # Change based on cloud provider
+parameters:
+  type: pd-ssd
+  fsType: ext4
+  replication-type: regional-pd
+reclaimPolicy: Retain
+allowVolumeExpansion: true
+volumeBindingMode: WaitForFirstConsumer
+
+---
+# Storage Class for standard storage (cost-effective option)
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: claude-standard-storage
+  labels:
+    app.kubernetes.io/name: claude-multiagent
+    app.kubernetes.io/component: storage
+provisioner: kubernetes.io/gce-pd  # Change based on cloud provider
+parameters:
+  type: pd-standard
+  fsType: ext4
+reclaimPolicy: Retain
+allowVolumeExpansion: true
+volumeBindingMode: WaitForFirstConsumer
+
+---
+# PVC for coordination data (shared across pods)
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: coordination-data-pvc
+  namespace: claude-multiagent
+  labels:
+    app.kubernetes.io/name: claude-multiagent
+    app.kubernetes.io/component: storage
+spec:
+  accessModes:
+    - ReadWriteMany  # Required for multi-node access
+  storageClassName: claude-fast-storage
+  resources:
+    requests:
+      storage: 10Gi
+
+---
+# PVC for orchestrator workspace
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: orchestrator-workspace-pvc
+  namespace: claude-multiagent
+  labels:
+    app.kubernetes.io/name: claude-multiagent
+    app.kubernetes.io/component: storage
+spec:
+  accessModes:
+    - ReadWriteMany
+  storageClassName: claude-fast-storage
+  resources:
+    requests:
+      storage: 50Gi
+
+---
+# PVC for MCP server state
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: mcp-state-pvc
+  namespace: claude-multiagent
+  labels:
+    app.kubernetes.io/name: claude-multiagent
+    app.kubernetes.io/component: storage
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: claude-fast-storage
+  resources:
+    requests:
+      storage: 5Gi
+
+---
+# AWS EBS Storage Class (alternative for AWS)
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: claude-aws-ebs-storage
+  labels:
+    app.kubernetes.io/name: claude-multiagent
+    app.kubernetes.io/component: storage
+provisioner: ebs.csi.aws.com
+parameters:
+  type: gp3
+  fsType: ext4
+  encrypted: "true"
+reclaimPolicy: Retain
+allowVolumeExpansion: true
+volumeBindingMode: WaitForFirstConsumer
+
+---
+# Azure Disk Storage Class (alternative for Azure)
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: claude-azure-disk-storage
+  labels:
+    app.kubernetes.io/name: claude-multiagent
+    app.kubernetes.io/component: storage
+provisioner: disk.csi.azure.com
+parameters:
+  skuName: Premium_LRS
+  cachingMode: ReadOnly
+reclaimPolicy: Retain
+allowVolumeExpansion: true
+volumeBindingMode: WaitForFirstConsumer

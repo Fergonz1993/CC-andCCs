@@ -27,12 +27,57 @@ import { v4 as uuidv4 } from "uuid";
 import * as fs from "fs";
 import * as path from "path";
 
+// Import subscription and security modules
+import {
+  getSubscriptionManager,
+  type SubscriptionEventType,
+  type SubscriptionFilter,
+} from "./subscriptions.js";
+import { getWebhookManager } from "./webhooks.js";
+import { getSSEManager } from "./sse.js";
+import { getSecurityManager, type Permission } from "./security.js";
+
+// Import advanced feature modules (adv-b-001 through adv-b-010)
+import { RateLimiter } from "./rate-limiter.js";
+import { RequestQueue } from "./request-queue.js";
+import {
+  getHealthStatus,
+  livenessCheck,
+  readinessCheck,
+} from "./health-check.js";
+import {
+  createWebSocketTransport,
+  type WebSocketTransport,
+} from "./websocket-transport.js";
+import type {
+  TaskFilter,
+  PaginationOptions,
+  BatchOperation,
+  BatchResult,
+  AuditLogEntry,
+  Transaction,
+  TransactionOperation,
+} from "./types.js";
+
 // ============================================================================
 // State Persistence Configuration
 // ============================================================================
 
 const STATE_DIR = process.env.COORDINATION_DIR || ".coordination";
 const STATE_FILE = path.join(STATE_DIR, "mcp-state.json");
+
+// Advanced features configuration
+const ENABLE_WEBSOCKET = process.env.ENABLE_WEBSOCKET === "true";
+const WEBSOCKET_PORT = parseInt(process.env.WEBSOCKET_PORT || "3001", 10);
+const ENABLE_RATE_LIMITING = process.env.ENABLE_RATE_LIMITING !== "false";
+const RATE_LIMIT_REQUESTS = parseInt(
+  process.env.RATE_LIMIT_REQUESTS || "100",
+  10,
+);
+const RATE_LIMIT_WINDOW_MS = parseInt(
+  process.env.RATE_LIMIT_WINDOW_MS || "60000",
+  10,
+);
 
 // Serializable version of state (Map -> Record for JSON)
 interface SerializableState {
@@ -43,6 +88,8 @@ interface SerializableState {
   discoveries: Discovery[];
   created_at: string;
   last_activity: string;
+  audit_log?: AuditLogEntry[];
+  transactions?: Record<string, Transaction>;
 }
 
 function ensureStateDir(): void {
@@ -67,8 +114,16 @@ function loadState(): void {
       // Convert agents Record back to Map
       state.agents = new Map(Object.entries(saved.agents || {}));
 
+      // Load audit log (adv-b-009)
+      state.audit_log = saved.audit_log || [];
+
+      // Convert transactions Record back to Map (adv-b-006)
+      state.transactions = new Map(
+        Object.entries(saved.transactions || {}),
+      ) as Map<string, Transaction>;
+
       console.error(
-        `Loaded state from ${STATE_FILE}: ${state.tasks.length} tasks, ${state.agents.size} agents`,
+        `Loaded state from ${STATE_FILE}: ${state.tasks.length} tasks, ${state.agents.size} agents, ${state.audit_log.length} audit entries`,
       );
     }
   } catch (error) {
@@ -89,6 +144,10 @@ function saveState(): void {
       discoveries: state.discoveries,
       created_at: state.created_at,
       last_activity: state.last_activity,
+      // Save audit log (adv-b-009)
+      audit_log: state.audit_log,
+      // Save transactions (adv-b-006)
+      transactions: Object.fromEntries(state.transactions),
     };
 
     fs.writeFileSync(STATE_FILE, JSON.stringify(serializable, null, 2));
@@ -122,6 +181,7 @@ interface Task {
   created_at: string;
   claimed_at: string | null;
   completed_at: string | null;
+  tags?: string[];
 }
 
 interface Agent {
@@ -148,6 +208,8 @@ interface CoordinationState {
   discoveries: Discovery[];
   created_at: string;
   last_activity: string;
+  audit_log: AuditLogEntry[];
+  transactions: Map<string, Transaction>;
 }
 
 // ============================================================================
@@ -162,7 +224,31 @@ const state: CoordinationState = {
   discoveries: [],
   created_at: new Date().toISOString(),
   last_activity: new Date().toISOString(),
+  audit_log: [],
+  transactions: new Map(),
 };
+
+// Advanced features instances (adv-b-001, adv-b-003, adv-b-004)
+const rateLimiter = new RateLimiter({
+  max_requests: RATE_LIMIT_REQUESTS,
+  window_ms: RATE_LIMIT_WINDOW_MS,
+  tokens: RATE_LIMIT_REQUESTS,
+  last_refill: Date.now(),
+});
+const requestQueue = new RequestQueue(1000);
+let wsTransport: WebSocketTransport | null = null;
+
+// Initialize subscription, webhook, SSE, and security managers
+const subscriptionManager = getSubscriptionManager({ batching_enabled: false });
+const webhookManager = getWebhookManager();
+const sseManager = getSSEManager();
+const securityManager = getSecurityManager({
+  api_key_enabled: false, // Disabled by default for backward compatibility
+  jwt_enabled: false,
+  request_signing_enabled: false,
+  ip_allowlist_enabled: false,
+  rate_limiting_enabled: false,
+});
 
 function updateActivity() {
   state.last_activity = new Date().toISOString();
@@ -200,6 +286,12 @@ function createTask(
   };
   state.tasks.push(task);
   updateActivity();
+
+  // Publish task created event
+  subscriptionManager.publishTaskEvent("task_created", task);
+  webhookManager.dispatchTaskEvent("task_created", task);
+  sseManager.broadcastTaskEvent("task_created", task);
+
   return task;
 }
 
@@ -235,6 +327,12 @@ function claimTask(agentId: string): Task | null {
   }
 
   updateActivity();
+
+  // Publish task claimed event
+  subscriptionManager.publishTaskEvent("task_claimed", task);
+  webhookManager.dispatchTaskEvent("task_claimed", task);
+  sseManager.broadcastTaskEvent("task_claimed", task);
+
   return task;
 }
 
@@ -244,6 +342,12 @@ function startTask(agentId: string, taskId: string): boolean {
 
   task.status = "in_progress";
   updateActivity();
+
+  // Publish task started event
+  subscriptionManager.publishTaskEvent("task_started", task);
+  webhookManager.dispatchTaskEvent("task_started", task);
+  sseManager.broadcastTaskEvent("task_started", task);
+
   return true;
 }
 
@@ -268,6 +372,12 @@ function completeTask(
   }
 
   updateActivity();
+
+  // Publish task completed event
+  subscriptionManager.publishTaskEvent("task_completed", task);
+  webhookManager.dispatchTaskEvent("task_completed", task);
+  sseManager.broadcastTaskEvent("task_completed", task);
+
   return true;
 }
 
@@ -287,6 +397,12 @@ function failTask(agentId: string, taskId: string, error: string): boolean {
   }
 
   updateActivity();
+
+  // Publish task failed event
+  subscriptionManager.publishTaskEvent("task_failed", task);
+  webhookManager.dispatchTaskEvent("task_failed", task);
+  sseManager.broadcastTaskEvent("task_failed", task);
+
   return true;
 }
 
@@ -304,6 +420,12 @@ function registerAgent(agentId: string, role: "leader" | "worker"): Agent {
   };
   state.agents.set(agentId, agent);
   updateActivity();
+
+  // Publish agent registered event
+  subscriptionManager.publishAgentEvent("agent_registered", agent);
+  webhookManager.dispatchAgentEvent("agent_registered", agent);
+  sseManager.broadcastAgentEvent("agent_registered", agent);
+
   return agent;
 }
 
@@ -333,6 +455,12 @@ function addDiscovery(
   };
   state.discoveries.push(discovery);
   updateActivity();
+
+  // Publish discovery added event
+  subscriptionManager.publishDiscoveryEvent(discovery);
+  webhookManager.dispatchDiscoveryEvent(discovery);
+  sseManager.broadcastDiscoveryEvent(discovery);
+
   return discovery;
 }
 
@@ -370,6 +498,390 @@ function getStatus() {
     discoveries_count: state.discoveries.length,
     last_activity: state.last_activity,
   };
+}
+
+// ============================================================================
+// Advanced Features: Audit Logging (adv-b-009)
+// ============================================================================
+
+function addAuditEntry(
+  action: string,
+  entity_type: "task" | "agent" | "discovery" | "coordination" | "transaction",
+  entity_id: string,
+  agent_id: string | null,
+  details?: Record<string, unknown>,
+): AuditLogEntry {
+  const entry: AuditLogEntry = {
+    id: uuidv4(),
+    timestamp: new Date().toISOString(),
+    action,
+    entity_type,
+    entity_id,
+    agent_id,
+    details,
+  };
+  state.audit_log.push(entry);
+
+  // Keep audit log size manageable (last 10000 entries)
+  if (state.audit_log.length > 10000) {
+    state.audit_log = state.audit_log.slice(-10000);
+  }
+
+  return entry;
+}
+
+function getAuditLog(
+  filter?: {
+    entity_type?: string;
+    entity_id?: string;
+    agent_id?: string;
+    action?: string;
+    since?: string;
+  },
+  limit: number = 100,
+): AuditLogEntry[] {
+  let entries = [...state.audit_log];
+
+  if (filter) {
+    if (filter.entity_type) {
+      entries = entries.filter((e) => e.entity_type === filter.entity_type);
+    }
+    if (filter.entity_id) {
+      entries = entries.filter((e) => e.entity_id === filter.entity_id);
+    }
+    if (filter.agent_id) {
+      entries = entries.filter((e) => e.agent_id === filter.agent_id);
+    }
+    if (filter.action) {
+      entries = entries.filter((e) => e.action === filter.action);
+    }
+    if (filter.since) {
+      const sinceDate = new Date(filter.since).getTime();
+      entries = entries.filter(
+        (e) => new Date(e.timestamp).getTime() >= sinceDate,
+      );
+    }
+  }
+
+  return entries.slice(-limit);
+}
+
+// ============================================================================
+// Advanced Features: Query Filtering (adv-b-007)
+// ============================================================================
+
+function filterTasks(filter: TaskFilter): Task[] {
+  let tasks = [...state.tasks];
+
+  if (filter.status && filter.status.length > 0) {
+    tasks = tasks.filter((t) => filter.status!.includes(t.status));
+  }
+
+  if (filter.priority_min !== undefined) {
+    tasks = tasks.filter((t) => t.priority >= filter.priority_min!);
+  }
+
+  if (filter.priority_max !== undefined) {
+    tasks = tasks.filter((t) => t.priority <= filter.priority_max!);
+  }
+
+  if (filter.claimed_by) {
+    tasks = tasks.filter((t) => t.claimed_by === filter.claimed_by);
+  }
+
+  if (filter.tags && filter.tags.length > 0) {
+    tasks = tasks.filter(
+      (t) => t.tags && t.tags.some((tag) => filter.tags!.includes(tag)),
+    );
+  }
+
+  if (filter.created_after) {
+    const afterDate = new Date(filter.created_after).getTime();
+    tasks = tasks.filter((t) => new Date(t.created_at).getTime() >= afterDate);
+  }
+
+  if (filter.created_before) {
+    const beforeDate = new Date(filter.created_before).getTime();
+    tasks = tasks.filter((t) => new Date(t.created_at).getTime() <= beforeDate);
+  }
+
+  if (filter.search) {
+    const search = filter.search.toLowerCase();
+    tasks = tasks.filter(
+      (t) =>
+        t.description.toLowerCase().includes(search) ||
+        t.id.toLowerCase().includes(search),
+    );
+  }
+
+  return tasks;
+}
+
+// ============================================================================
+// Advanced Features: Pagination (adv-b-008)
+// ============================================================================
+
+interface PaginatedResult<T> {
+  items: T[];
+  total: number;
+  page: number;
+  page_size: number;
+  total_pages: number;
+  has_next: boolean;
+  has_prev: boolean;
+}
+
+function paginateItems<T>(
+  items: T[],
+  options: PaginationOptions,
+): PaginatedResult<T> {
+  const page = options.page || 1;
+  const pageSize = Math.min(options.page_size || 20, 100); // Max 100 items per page
+  const total = items.length;
+  const totalPages = Math.ceil(total / pageSize);
+
+  // Sort if specified
+  if (options.sort_by) {
+    const sortDir = options.sort_direction === "desc" ? -1 : 1;
+    items = [...items].sort((a: any, b: any) => {
+      const aVal = a[options.sort_by!];
+      const bVal = b[options.sort_by!];
+      if (aVal < bVal) return -1 * sortDir;
+      if (aVal > bVal) return 1 * sortDir;
+      return 0;
+    });
+  }
+
+  const startIndex = (page - 1) * pageSize;
+  const paginatedItems = items.slice(startIndex, startIndex + pageSize);
+
+  return {
+    items: paginatedItems,
+    total,
+    page,
+    page_size: pageSize,
+    total_pages: totalPages,
+    has_next: page < totalPages,
+    has_prev: page > 1,
+  };
+}
+
+// ============================================================================
+// Advanced Features: Batch Operations (adv-b-005)
+// ============================================================================
+
+function executeBatchOperations(
+  operations: BatchOperation[],
+  agentId: string,
+): BatchResult[] {
+  const results: BatchResult[] = [];
+
+  for (const op of operations) {
+    try {
+      let success = false;
+      let data: unknown = null;
+      let error: string | undefined;
+
+      switch (op.operation) {
+        case "create_task": {
+          const task = createTask(
+            op.params.description as string,
+            (op.params.priority as number) || 5,
+            (op.params.dependencies as string[]) || [],
+            op.params.context as Task["context"],
+          );
+          success = true;
+          data = task;
+          addAuditEntry("batch_create_task", "task", task.id, agentId, {
+            batch: true,
+          });
+          break;
+        }
+        case "update_task": {
+          const task = state.tasks.find((t) => t.id === op.params.task_id);
+          if (task) {
+            if (op.params.priority !== undefined)
+              task.priority = op.params.priority as number;
+            if (op.params.tags !== undefined)
+              task.tags = op.params.tags as string[];
+            success = true;
+            data = task;
+            addAuditEntry("batch_update_task", "task", task.id, agentId, {
+              batch: true,
+            });
+          } else {
+            error = `Task ${op.params.task_id} not found`;
+          }
+          break;
+        }
+        case "delete_task": {
+          const index = state.tasks.findIndex(
+            (t) => t.id === op.params.task_id,
+          );
+          if (index !== -1) {
+            const deleted = state.tasks.splice(index, 1)[0];
+            success = true;
+            data = { deleted_id: deleted.id };
+            addAuditEntry("batch_delete_task", "task", deleted.id, agentId, {
+              batch: true,
+            });
+          } else {
+            error = `Task ${op.params.task_id} not found`;
+          }
+          break;
+        }
+        case "claim_task": {
+          const claimed = claimTask(agentId);
+          if (claimed) {
+            success = true;
+            data = claimed;
+            addAuditEntry("batch_claim_task", "task", claimed.id, agentId, {
+              batch: true,
+            });
+          } else {
+            error = "No available tasks";
+          }
+          break;
+        }
+        case "complete_task": {
+          success = completeTask(
+            agentId,
+            op.params.task_id as string,
+            op.params.result as Task["result"],
+          );
+          if (success) {
+            addAuditEntry(
+              "batch_complete_task",
+              "task",
+              op.params.task_id as string,
+              agentId,
+              { batch: true },
+            );
+          } else {
+            error = `Cannot complete task ${op.params.task_id}`;
+          }
+          break;
+        }
+        default:
+          error = `Unknown operation: ${op.operation}`;
+      }
+
+      results.push({
+        operation_index: operations.indexOf(op),
+        success,
+        data,
+        error,
+      });
+    } catch (e) {
+      results.push({
+        operation_index: operations.indexOf(op),
+        success: false,
+        error: e instanceof Error ? e.message : String(e),
+      });
+    }
+  }
+
+  updateActivity();
+  return results;
+}
+
+// ============================================================================
+// Advanced Features: Transaction Support (adv-b-006)
+// ============================================================================
+
+function beginTransaction(agentId: string): Transaction {
+  const transaction: Transaction = {
+    id: uuidv4(),
+    agent_id: agentId,
+    operations: [],
+    status: "pending",
+    created_at: new Date().toISOString(),
+  };
+  state.transactions.set(transaction.id, transaction);
+  addAuditEntry("begin_transaction", "transaction", transaction.id, agentId);
+  return transaction;
+}
+
+function addTransactionOperation(
+  transactionId: string,
+  operation: TransactionOperation,
+): boolean {
+  const transaction = state.transactions.get(transactionId);
+  if (!transaction || transaction.status !== "pending") {
+    return false;
+  }
+  transaction.operations.push(operation);
+  return true;
+}
+
+function commitTransaction(transactionId: string): {
+  success: boolean;
+  results?: BatchResult[];
+  error?: string;
+} {
+  const transaction = state.transactions.get(transactionId);
+  if (!transaction) {
+    return { success: false, error: "Transaction not found" };
+  }
+  if (transaction.status !== "pending") {
+    return { success: false, error: `Transaction is ${transaction.status}` };
+  }
+
+  // Convert transaction operations to batch operations
+  const batchOps: BatchOperation[] = transaction.operations.map((op) => ({
+    operation: op.type as BatchOperation["operation"],
+    params: op.params,
+  }));
+
+  // Execute all operations
+  const results = executeBatchOperations(batchOps, transaction.agent_id);
+
+  // Check if all succeeded
+  const allSucceeded = results.every((r) => r.success);
+
+  if (allSucceeded) {
+    transaction.status = "committed";
+    transaction.committed_at = new Date().toISOString();
+    addAuditEntry(
+      "commit_transaction",
+      "transaction",
+      transactionId,
+      transaction.agent_id,
+      { operations_count: results.length },
+    );
+    return { success: true, results };
+  } else {
+    // Rollback would be complex - for now we mark as failed
+    transaction.status = "failed";
+    addAuditEntry(
+      "fail_transaction",
+      "transaction",
+      transactionId,
+      transaction.agent_id,
+      { failed_operations: results.filter((r) => !r.success).length },
+    );
+    return {
+      success: false,
+      results,
+      error: "Some operations failed",
+    };
+  }
+}
+
+function rollbackTransaction(transactionId: string): boolean {
+  const transaction = state.transactions.get(transactionId);
+  if (!transaction || transaction.status !== "pending") {
+    return false;
+  }
+  transaction.status = "rolled_back";
+  transaction.operations = [];
+  addAuditEntry(
+    "rollback_transaction",
+    "transaction",
+    transactionId,
+    transaction.agent_id,
+  );
+  return true;
 }
 
 // ============================================================================
@@ -695,6 +1207,697 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
           properties: {},
         },
       },
+
+      // === SUBSCRIPTION TOOLS (adv-b-sub-001, adv-b-sub-004, adv-b-sub-005) ===
+      {
+        name: "subscribe",
+        description: "Subscribe to real-time task and coordination events",
+        inputSchema: {
+          type: "object",
+          properties: {
+            subscriber_id: {
+              type: "string",
+              description: "Unique identifier for the subscriber",
+            },
+            event_types: {
+              type: "array",
+              items: {
+                type: "string",
+                enum: [
+                  "task_created",
+                  "task_updated",
+                  "task_claimed",
+                  "task_started",
+                  "task_completed",
+                  "task_failed",
+                  "discovery_added",
+                  "agent_registered",
+                  "agent_heartbeat",
+                  "coordination_init",
+                ],
+              },
+              description: "Event types to subscribe to (empty for all)",
+            },
+            task_status: {
+              type: "array",
+              items: {
+                type: "string",
+                enum: ["available", "claimed", "in_progress", "done", "failed"],
+              },
+              description: "Filter by task status",
+            },
+            task_tags: {
+              type: "array",
+              items: { type: "string" },
+              description: "Filter by task tags",
+            },
+            agent_id: {
+              type: "string",
+              description: "Filter by agent ID",
+            },
+            priority_min: {
+              type: "number",
+              description: "Minimum priority filter",
+            },
+            priority_max: {
+              type: "number",
+              description: "Maximum priority filter",
+            },
+          },
+          required: ["subscriber_id"],
+        },
+      },
+      {
+        name: "unsubscribe",
+        description: "Remove a subscription",
+        inputSchema: {
+          type: "object",
+          properties: {
+            subscription_id: {
+              type: "string",
+              description: "Subscription ID to remove",
+            },
+          },
+          required: ["subscription_id"],
+        },
+      },
+      {
+        name: "get_subscriptions",
+        description: "Get all subscriptions for a subscriber",
+        inputSchema: {
+          type: "object",
+          properties: {
+            subscriber_id: {
+              type: "string",
+              description: "Subscriber ID",
+            },
+          },
+          required: ["subscriber_id"],
+        },
+      },
+      {
+        name: "configure_batching",
+        description: "Configure notification batching settings",
+        inputSchema: {
+          type: "object",
+          properties: {
+            enabled: {
+              type: "boolean",
+              description: "Enable or disable batching",
+            },
+            batch_interval_ms: {
+              type: "number",
+              description: "Batch interval in milliseconds",
+            },
+            max_batch_size: {
+              type: "number",
+              description: "Maximum notifications per batch",
+            },
+          },
+          required: ["enabled"],
+        },
+      },
+
+      // === WEBHOOK TOOLS (adv-b-sub-002) ===
+      {
+        name: "register_webhook",
+        description: "Register a webhook to receive event callbacks",
+        inputSchema: {
+          type: "object",
+          properties: {
+            url: {
+              type: "string",
+              description: "Webhook URL to receive callbacks",
+            },
+            events: {
+              type: "array",
+              items: {
+                type: "string",
+                enum: [
+                  "task_created",
+                  "task_updated",
+                  "task_claimed",
+                  "task_started",
+                  "task_completed",
+                  "task_failed",
+                  "discovery_added",
+                  "agent_registered",
+                  "agent_heartbeat",
+                ],
+              },
+              description: "Events to trigger webhook",
+            },
+            secret: {
+              type: "string",
+              description: "Optional secret for signing webhooks",
+            },
+            headers: {
+              type: "object",
+              description: "Optional custom headers",
+            },
+          },
+          required: ["url", "events"],
+        },
+      },
+      {
+        name: "delete_webhook",
+        description: "Delete a webhook",
+        inputSchema: {
+          type: "object",
+          properties: {
+            webhook_id: {
+              type: "string",
+              description: "Webhook ID to delete",
+            },
+          },
+          required: ["webhook_id"],
+        },
+      },
+      {
+        name: "list_webhooks",
+        description: "List all registered webhooks",
+        inputSchema: {
+          type: "object",
+          properties: {},
+        },
+      },
+      {
+        name: "get_webhook_deliveries",
+        description: "Get webhook delivery history",
+        inputSchema: {
+          type: "object",
+          properties: {
+            webhook_id: {
+              type: "string",
+              description: "Optional webhook ID to filter",
+            },
+            limit: {
+              type: "number",
+              description: "Maximum deliveries to return",
+              default: 50,
+            },
+          },
+        },
+      },
+
+      // === SSE TOOLS (adv-b-sub-003) ===
+      {
+        name: "get_sse_stats",
+        description: "Get SSE connection statistics",
+        inputSchema: {
+          type: "object",
+          properties: {},
+        },
+      },
+      {
+        name: "get_event_history",
+        description: "Get recent event history for replay",
+        inputSchema: {
+          type: "object",
+          properties: {
+            limit: {
+              type: "number",
+              description: "Maximum events to return",
+              default: 50,
+            },
+          },
+        },
+      },
+
+      // === SECURITY TOOLS (adv-b-sec-001 through adv-b-sec-005) ===
+      {
+        name: "create_api_key",
+        description: "Create a new API key for authentication",
+        inputSchema: {
+          type: "object",
+          properties: {
+            name: {
+              type: "string",
+              description: "Name for the API key",
+            },
+            agent_id: {
+              type: "string",
+              description: "Optional agent ID to associate",
+            },
+            role: {
+              type: "string",
+              enum: ["leader", "worker", "admin"],
+              description: "Role for the API key",
+            },
+            permissions: {
+              type: "array",
+              items: {
+                type: "string",
+                enum: [
+                  "read",
+                  "write",
+                  "admin",
+                  "create_task",
+                  "claim_task",
+                  "complete_task",
+                  "manage_agents",
+                  "view_status",
+                  "manage_webhooks",
+                  "manage_subscriptions",
+                ],
+              },
+              description: "Specific permissions",
+            },
+            ip_allowlist: {
+              type: "array",
+              items: { type: "string" },
+              description: "IP addresses allowed to use this key",
+            },
+            expires_in_days: {
+              type: "number",
+              description: "Days until key expires",
+            },
+          },
+          required: ["name"],
+        },
+      },
+      {
+        name: "revoke_api_key",
+        description: "Revoke an API key",
+        inputSchema: {
+          type: "object",
+          properties: {
+            key_id: {
+              type: "string",
+              description: "API key ID to revoke",
+            },
+          },
+          required: ["key_id"],
+        },
+      },
+      {
+        name: "list_api_keys",
+        description: "List all API keys",
+        inputSchema: {
+          type: "object",
+          properties: {},
+        },
+      },
+      {
+        name: "generate_jwt",
+        description: "Generate a JWT token for authentication",
+        inputSchema: {
+          type: "object",
+          properties: {
+            subject: {
+              type: "string",
+              description: "Subject (agent ID or identifier)",
+            },
+            role: {
+              type: "string",
+              enum: ["leader", "worker", "admin"],
+              description: "Role for the token",
+            },
+            permissions: {
+              type: "array",
+              items: { type: "string" },
+              description: "Permissions to include",
+            },
+          },
+          required: ["subject", "role"],
+        },
+      },
+      {
+        name: "validate_jwt",
+        description: "Validate a JWT token",
+        inputSchema: {
+          type: "object",
+          properties: {
+            token: {
+              type: "string",
+              description: "JWT token to validate",
+            },
+          },
+          required: ["token"],
+        },
+      },
+      {
+        name: "configure_security",
+        description: "Configure security settings",
+        inputSchema: {
+          type: "object",
+          properties: {
+            api_key_enabled: {
+              type: "boolean",
+              description: "Enable API key authentication",
+            },
+            jwt_enabled: {
+              type: "boolean",
+              description: "Enable JWT authentication",
+            },
+            request_signing_enabled: {
+              type: "boolean",
+              description: "Enable request signing",
+            },
+            ip_allowlist_enabled: {
+              type: "boolean",
+              description: "Enable IP allowlisting",
+            },
+            rate_limiting_enabled: {
+              type: "boolean",
+              description: "Enable rate limiting",
+            },
+          },
+        },
+      },
+      {
+        name: "add_ip_to_allowlist",
+        description: "Add an IP address to the global allowlist",
+        inputSchema: {
+          type: "object",
+          properties: {
+            ip: {
+              type: "string",
+              description: "IP address or CIDR range",
+            },
+          },
+          required: ["ip"],
+        },
+      },
+      {
+        name: "add_ip_to_denylist",
+        description: "Add an IP address to the global denylist",
+        inputSchema: {
+          type: "object",
+          properties: {
+            ip: {
+              type: "string",
+              description: "IP address or CIDR range",
+            },
+          },
+          required: ["ip"],
+        },
+      },
+      {
+        name: "get_rate_limit_status",
+        description: "Get rate limit status for an API key",
+        inputSchema: {
+          type: "object",
+          properties: {
+            key_id: {
+              type: "string",
+              description: "API key ID",
+            },
+          },
+          required: ["key_id"],
+        },
+      },
+      {
+        name: "get_security_stats",
+        description: "Get security statistics",
+        inputSchema: {
+          type: "object",
+          properties: {},
+        },
+      },
+
+      // === ADVANCED FEATURES: Query Filtering (adv-b-007) ===
+      {
+        name: "query_tasks",
+        description:
+          "Query tasks with advanced filtering options (status, priority, tags, date range)",
+        inputSchema: {
+          type: "object",
+          properties: {
+            status: {
+              type: "array",
+              items: {
+                type: "string",
+                enum: ["available", "claimed", "in_progress", "done", "failed"],
+              },
+              description: "Filter by task statuses",
+            },
+            priority_min: {
+              type: "number",
+              description: "Minimum priority (1-10)",
+            },
+            priority_max: {
+              type: "number",
+              description: "Maximum priority (1-10)",
+            },
+            claimed_by: {
+              type: "string",
+              description: "Filter by agent ID that claimed the task",
+            },
+            tags: {
+              type: "array",
+              items: { type: "string" },
+              description: "Filter by tags (any match)",
+            },
+            created_after: {
+              type: "string",
+              description: "Filter by creation date (ISO 8601)",
+            },
+            created_before: {
+              type: "string",
+              description: "Filter by creation date (ISO 8601)",
+            },
+            search: {
+              type: "string",
+              description: "Search in task description and ID",
+            },
+            page: {
+              type: "number",
+              description: "Page number (default: 1)",
+            },
+            page_size: {
+              type: "number",
+              description: "Items per page (default: 20, max: 100)",
+            },
+            sort_by: {
+              type: "string",
+              enum: ["created_at", "priority", "status"],
+              description: "Sort field",
+            },
+            sort_direction: {
+              type: "string",
+              enum: ["asc", "desc"],
+              description: "Sort direction",
+            },
+          },
+        },
+      },
+
+      // === ADVANCED FEATURES: Batch Operations (adv-b-005) ===
+      {
+        name: "batch_operations",
+        description:
+          "Execute multiple operations in a single request (create, update, delete tasks)",
+        inputSchema: {
+          type: "object",
+          properties: {
+            agent_id: {
+              type: "string",
+              description: "Agent ID performing the operations",
+            },
+            operations: {
+              type: "array",
+              items: {
+                type: "object",
+                properties: {
+                  operation: {
+                    type: "string",
+                    enum: [
+                      "create_task",
+                      "update_task",
+                      "delete_task",
+                      "claim_task",
+                      "complete_task",
+                    ],
+                    description: "Operation type",
+                  },
+                  params: {
+                    type: "object",
+                    description: "Operation parameters",
+                  },
+                },
+                required: ["operation", "params"],
+              },
+              description: "List of operations to execute",
+            },
+          },
+          required: ["agent_id", "operations"],
+        },
+      },
+
+      // === ADVANCED FEATURES: Transaction Support (adv-b-006) ===
+      {
+        name: "begin_transaction",
+        description: "Begin a new transaction for atomic operations",
+        inputSchema: {
+          type: "object",
+          properties: {
+            agent_id: {
+              type: "string",
+              description: "Agent ID starting the transaction",
+            },
+          },
+          required: ["agent_id"],
+        },
+      },
+      {
+        name: "add_transaction_operation",
+        description: "Add an operation to a pending transaction",
+        inputSchema: {
+          type: "object",
+          properties: {
+            transaction_id: {
+              type: "string",
+              description: "Transaction ID",
+            },
+            operation: {
+              type: "object",
+              properties: {
+                type: {
+                  type: "string",
+                  enum: [
+                    "create_task",
+                    "update_task",
+                    "delete_task",
+                    "claim_task",
+                    "complete_task",
+                  ],
+                  description: "Operation type",
+                },
+                params: {
+                  type: "object",
+                  description: "Operation parameters",
+                },
+              },
+              required: ["type", "params"],
+            },
+          },
+          required: ["transaction_id", "operation"],
+        },
+      },
+      {
+        name: "commit_transaction",
+        description: "Commit a transaction and execute all operations",
+        inputSchema: {
+          type: "object",
+          properties: {
+            transaction_id: {
+              type: "string",
+              description: "Transaction ID to commit",
+            },
+          },
+          required: ["transaction_id"],
+        },
+      },
+      {
+        name: "rollback_transaction",
+        description: "Rollback a pending transaction",
+        inputSchema: {
+          type: "object",
+          properties: {
+            transaction_id: {
+              type: "string",
+              description: "Transaction ID to rollback",
+            },
+          },
+          required: ["transaction_id"],
+        },
+      },
+
+      // === ADVANCED FEATURES: Audit Log (adv-b-009) ===
+      {
+        name: "get_audit_log",
+        description: "Get audit log entries with optional filtering",
+        inputSchema: {
+          type: "object",
+          properties: {
+            entity_type: {
+              type: "string",
+              enum: [
+                "task",
+                "agent",
+                "discovery",
+                "coordination",
+                "transaction",
+              ],
+              description: "Filter by entity type",
+            },
+            entity_id: {
+              type: "string",
+              description: "Filter by entity ID",
+            },
+            agent_id: {
+              type: "string",
+              description: "Filter by agent ID",
+            },
+            action: {
+              type: "string",
+              description: "Filter by action type",
+            },
+            since: {
+              type: "string",
+              description: "Filter entries since this timestamp (ISO 8601)",
+            },
+            limit: {
+              type: "number",
+              description: "Maximum entries to return (default: 100)",
+            },
+          },
+        },
+      },
+
+      // === ADVANCED FEATURES: Health Check (adv-b-010) ===
+      {
+        name: "health_check",
+        description:
+          "Get comprehensive health status of the coordination server",
+        inputSchema: {
+          type: "object",
+          properties: {
+            check_type: {
+              type: "string",
+              enum: ["full", "liveness", "readiness"],
+              description: "Type of health check (default: full)",
+            },
+          },
+        },
+      },
+
+      // === ADVANCED FEATURES: Rate Limiting (adv-b-003) ===
+      {
+        name: "check_rate_limit",
+        description: "Check rate limit status for an agent",
+        inputSchema: {
+          type: "object",
+          properties: {
+            agent_id: {
+              type: "string",
+              description: "Agent ID to check",
+            },
+          },
+          required: ["agent_id"],
+        },
+      },
+
+      // === ADVANCED FEATURES: Request Queue (adv-b-004) ===
+      {
+        name: "get_queue_stats",
+        description: "Get request queue statistics",
+        inputSchema: {
+          type: "object",
+          properties: {},
+        },
+      },
+
+      // === ADVANCED FEATURES: WebSocket Status (adv-b-001) ===
+      {
+        name: "get_websocket_status",
+        description: "Get WebSocket transport status and connected clients",
+        inputSchema: {
+          type: "object",
+          properties: {},
+        },
+      },
     ],
   };
 });
@@ -1000,6 +2203,584 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         };
       }
 
+      // === SUBSCRIPTION TOOLS ===
+      case "subscribe": {
+        const filter: SubscriptionFilter = {
+          event_types: args?.event_types as SubscriptionEventType[],
+          task_status: args?.task_status as any[],
+          task_tags: args?.task_tags as string[],
+          agent_id: args?.agent_id as string,
+          priority_min: args?.priority_min as number,
+          priority_max: args?.priority_max as number,
+        };
+        const subscription = subscriptionManager.subscribe(
+          args?.subscriber_id as string,
+          filter,
+        );
+        return {
+          content: [
+            {
+              type: "text",
+              text: JSON.stringify({ success: true, subscription }, null, 2),
+            },
+          ],
+        };
+      }
+
+      case "unsubscribe": {
+        const success = subscriptionManager.unsubscribe(
+          args?.subscription_id as string,
+        );
+        return {
+          content: [
+            {
+              type: "text",
+              text: JSON.stringify({ success }),
+            },
+          ],
+        };
+      }
+
+      case "get_subscriptions": {
+        const subscriptions = subscriptionManager.getSubscriberSubscriptions(
+          args?.subscriber_id as string,
+        );
+        return {
+          content: [
+            {
+              type: "text",
+              text: JSON.stringify({ subscriptions }, null, 2),
+            },
+          ],
+        };
+      }
+
+      case "configure_batching": {
+        subscriptionManager.updateConfig({
+          batching_enabled: args?.enabled as boolean,
+          batch_interval_ms: args?.batch_interval_ms as number,
+          max_batch_size: args?.max_batch_size as number,
+        });
+        return {
+          content: [
+            {
+              type: "text",
+              text: JSON.stringify({
+                success: true,
+                config: subscriptionManager.getConfig(),
+              }),
+            },
+          ],
+        };
+      }
+
+      // === WEBHOOK TOOLS ===
+      case "register_webhook": {
+        const webhook = webhookManager.registerWebhook(
+          args?.url as string,
+          args?.events as SubscriptionEventType[],
+          {
+            secret: args?.secret as string,
+            headers: args?.headers as Record<string, string>,
+          },
+        );
+        return {
+          content: [
+            {
+              type: "text",
+              text: JSON.stringify({ success: true, webhook }, null, 2),
+            },
+          ],
+        };
+      }
+
+      case "delete_webhook": {
+        const success = webhookManager.deleteWebhook(
+          args?.webhook_id as string,
+        );
+        return {
+          content: [
+            {
+              type: "text",
+              text: JSON.stringify({ success }),
+            },
+          ],
+        };
+      }
+
+      case "list_webhooks": {
+        const webhooks = webhookManager.getAllWebhooks();
+        return {
+          content: [
+            {
+              type: "text",
+              text: JSON.stringify({ webhooks }, null, 2),
+            },
+          ],
+        };
+      }
+
+      case "get_webhook_deliveries": {
+        const deliveries = webhookManager.getDeliveryHistory(
+          args?.webhook_id as string,
+          { limit: (args?.limit as number) || 50 },
+        );
+        return {
+          content: [
+            {
+              type: "text",
+              text: JSON.stringify({ deliveries }, null, 2),
+            },
+          ],
+        };
+      }
+
+      // === SSE TOOLS ===
+      case "get_sse_stats": {
+        const stats = sseManager.getStats();
+        return {
+          content: [
+            {
+              type: "text",
+              text: JSON.stringify({ stats }, null, 2),
+            },
+          ],
+        };
+      }
+
+      case "get_event_history": {
+        const events = sseManager.getEventHistory(
+          (args?.limit as number) || 50,
+        );
+        return {
+          content: [
+            {
+              type: "text",
+              text: JSON.stringify({ events }, null, 2),
+            },
+          ],
+        };
+      }
+
+      // === SECURITY TOOLS ===
+      case "create_api_key": {
+        const apiKey = securityManager.createAPIKey({
+          name: args?.name as string,
+          agent_id: args?.agent_id as string,
+          role: args?.role as "leader" | "worker" | "admin",
+          permissions: args?.permissions as Permission[],
+          ip_allowlist: args?.ip_allowlist as string[],
+          expires_in_days: args?.expires_in_days as number,
+        });
+        return {
+          content: [
+            {
+              type: "text",
+              text: JSON.stringify({ success: true, api_key: apiKey }, null, 2),
+            },
+          ],
+        };
+      }
+
+      case "revoke_api_key": {
+        const success = securityManager.revokeAPIKey(args?.key_id as string);
+        return {
+          content: [
+            {
+              type: "text",
+              text: JSON.stringify({ success }),
+            },
+          ],
+        };
+      }
+
+      case "list_api_keys": {
+        const apiKeys = securityManager.getAllAPIKeys();
+        return {
+          content: [
+            {
+              type: "text",
+              text: JSON.stringify({ api_keys: apiKeys }, null, 2),
+            },
+          ],
+        };
+      }
+
+      case "generate_jwt": {
+        const token = securityManager.generateJWT(
+          args?.subject as string,
+          args?.role as "leader" | "worker" | "admin",
+          (args?.permissions as Permission[]) || [],
+        );
+        return {
+          content: [
+            {
+              type: "text",
+              text: JSON.stringify({ success: true, token }, null, 2),
+            },
+          ],
+        };
+      }
+
+      case "validate_jwt": {
+        const result = securityManager.validateJWT(args?.token as string);
+        return {
+          content: [
+            {
+              type: "text",
+              text: JSON.stringify(result, null, 2),
+            },
+          ],
+        };
+      }
+
+      case "configure_security": {
+        securityManager.updateConfig({
+          api_key_enabled: args?.api_key_enabled as boolean,
+          jwt_enabled: args?.jwt_enabled as boolean,
+          request_signing_enabled: args?.request_signing_enabled as boolean,
+          ip_allowlist_enabled: args?.ip_allowlist_enabled as boolean,
+          rate_limiting_enabled: args?.rate_limiting_enabled as boolean,
+        });
+        return {
+          content: [
+            {
+              type: "text",
+              text: JSON.stringify({
+                success: true,
+                config: securityManager.getConfig(),
+              }),
+            },
+          ],
+        };
+      }
+
+      case "add_ip_to_allowlist": {
+        securityManager.addToGlobalAllowlist(args?.ip as string);
+        return {
+          content: [
+            {
+              type: "text",
+              text: JSON.stringify({ success: true }),
+            },
+          ],
+        };
+      }
+
+      case "add_ip_to_denylist": {
+        securityManager.addToGlobalDenylist(args?.ip as string);
+        return {
+          content: [
+            {
+              type: "text",
+              text: JSON.stringify({ success: true }),
+            },
+          ],
+        };
+      }
+
+      case "get_rate_limit_status": {
+        const status = securityManager.getRateLimitStatus(
+          args?.key_id as string,
+        );
+        return {
+          content: [
+            {
+              type: "text",
+              text: JSON.stringify({ status }, null, 2),
+            },
+          ],
+        };
+      }
+
+      case "get_security_stats": {
+        const stats = securityManager.getStats();
+        return {
+          content: [
+            {
+              type: "text",
+              text: JSON.stringify({ stats }, null, 2),
+            },
+          ],
+        };
+      }
+
+      // === ADVANCED FEATURES: Query Filtering (adv-b-007) ===
+      case "query_tasks": {
+        const taskFilter: TaskFilter = {
+          status: args?.status as Task["status"][],
+          priority_min: args?.priority_min as number,
+          priority_max: args?.priority_max as number,
+          claimed_by: args?.claimed_by as string,
+          tags: args?.tags as string[],
+          created_after: args?.created_after as string,
+          created_before: args?.created_before as string,
+          search: args?.search as string,
+        };
+        const paginationOpts: PaginationOptions = {
+          page: (args?.page as number) || 1,
+          page_size: (args?.page_size as number) || 20,
+          sort_by: args?.sort_by as string,
+          sort_direction: args?.sort_direction as "asc" | "desc",
+        };
+
+        const filteredTasks = filterTasks(taskFilter);
+        const result = paginateItems(filteredTasks, paginationOpts);
+
+        return {
+          content: [
+            {
+              type: "text",
+              text: JSON.stringify(result, null, 2),
+            },
+          ],
+        };
+      }
+
+      // === ADVANCED FEATURES: Batch Operations (adv-b-005) ===
+      case "batch_operations": {
+        const agentId = args?.agent_id as string;
+        const operations = args?.operations as BatchOperation[];
+
+        if (!agentId || !operations || !Array.isArray(operations)) {
+          return {
+            content: [
+              {
+                type: "text",
+                text: JSON.stringify({
+                  error: "Missing required parameters: agent_id and operations",
+                }),
+              },
+            ],
+          };
+        }
+
+        const results = executeBatchOperations(operations, agentId);
+        return {
+          content: [
+            {
+              type: "text",
+              text: JSON.stringify(
+                {
+                  success: results.every((r) => r.success),
+                  results,
+                  total_operations: operations.length,
+                  successful: results.filter((r) => r.success).length,
+                  failed: results.filter((r) => !r.success).length,
+                },
+                null,
+                2,
+              ),
+            },
+          ],
+        };
+      }
+
+      // === ADVANCED FEATURES: Transaction Support (adv-b-006) ===
+      case "begin_transaction": {
+        const transaction = beginTransaction(args?.agent_id as string);
+        return {
+          content: [
+            {
+              type: "text",
+              text: JSON.stringify(
+                { success: true, transaction_id: transaction.id, transaction },
+                null,
+                2,
+              ),
+            },
+          ],
+        };
+      }
+
+      case "add_transaction_operation": {
+        const op = args?.operation as TransactionOperation;
+        const success = addTransactionOperation(
+          args?.transaction_id as string,
+          op,
+        );
+        return {
+          content: [
+            {
+              type: "text",
+              text: JSON.stringify({ success }),
+            },
+          ],
+        };
+      }
+
+      case "commit_transaction": {
+        const commitResult = commitTransaction(args?.transaction_id as string);
+        return {
+          content: [
+            {
+              type: "text",
+              text: JSON.stringify(commitResult, null, 2),
+            },
+          ],
+        };
+      }
+
+      case "rollback_transaction": {
+        const success = rollbackTransaction(args?.transaction_id as string);
+        return {
+          content: [
+            {
+              type: "text",
+              text: JSON.stringify({ success }),
+            },
+          ],
+        };
+      }
+
+      // === ADVANCED FEATURES: Audit Log (adv-b-009) ===
+      case "get_audit_log": {
+        const auditFilter = {
+          entity_type: args?.entity_type as string,
+          entity_id: args?.entity_id as string,
+          agent_id: args?.agent_id as string,
+          action: args?.action as string,
+          since: args?.since as string,
+        };
+        const limit = (args?.limit as number) || 100;
+        const entries = getAuditLog(auditFilter, limit);
+        return {
+          content: [
+            {
+              type: "text",
+              text: JSON.stringify({ entries, count: entries.length }, null, 2),
+            },
+          ],
+        };
+      }
+
+      // === ADVANCED FEATURES: Health Check (adv-b-010) ===
+      case "health_check": {
+        const checkType = (args?.check_type as string) || "full";
+        const healthContext = {
+          stateDir: STATE_DIR,
+          tasks: state.tasks,
+          agents: Array.from(state.agents.values()),
+          lastActivity: state.last_activity,
+        };
+
+        let result;
+        switch (checkType) {
+          case "liveness":
+            result = livenessCheck();
+            break;
+          case "readiness":
+            result = readinessCheck(healthContext);
+            break;
+          default:
+            result = getHealthStatus(healthContext);
+        }
+
+        return {
+          content: [
+            {
+              type: "text",
+              text: JSON.stringify(result, null, 2),
+            },
+          ],
+        };
+      }
+
+      // === ADVANCED FEATURES: Rate Limiting (adv-b-003) ===
+      case "check_rate_limit": {
+        if (ENABLE_RATE_LIMITING) {
+          const agentId = args?.agent_id as string;
+          const limitResult = rateLimiter.checkLimit(agentId);
+          const status = rateLimiter.getStatus(agentId);
+          return {
+            content: [
+              {
+                type: "text",
+                text: JSON.stringify(
+                  {
+                    agent_id: agentId,
+                    ...limitResult,
+                    ...status,
+                    rate_limiting_enabled: true,
+                  },
+                  null,
+                  2,
+                ),
+              },
+            ],
+          };
+        }
+        return {
+          content: [
+            {
+              type: "text",
+              text: JSON.stringify({
+                rate_limiting_enabled: false,
+                message: "Rate limiting is disabled",
+              }),
+            },
+          ],
+        };
+      }
+
+      // === ADVANCED FEATURES: Request Queue (adv-b-004) ===
+      case "get_queue_stats": {
+        const queueStats = requestQueue.getStats();
+        return {
+          content: [
+            {
+              type: "text",
+              text: JSON.stringify(
+                {
+                  ...queueStats,
+                  is_processing: requestQueue.isProcessing(),
+                },
+                null,
+                2,
+              ),
+            },
+          ],
+        };
+      }
+
+      // === ADVANCED FEATURES: WebSocket Status (adv-b-001) ===
+      case "get_websocket_status": {
+        if (wsTransport && wsTransport.isRunning()) {
+          return {
+            content: [
+              {
+                type: "text",
+                text: JSON.stringify(
+                  {
+                    enabled: true,
+                    running: true,
+                    port: WEBSOCKET_PORT,
+                    connected_clients: wsTransport.getClientCount(),
+                    connected_agents: wsTransport.getConnectedAgents(),
+                  },
+                  null,
+                  2,
+                ),
+              },
+            ],
+          };
+        }
+        return {
+          content: [
+            {
+              type: "text",
+              text: JSON.stringify({
+                enabled: ENABLE_WEBSOCKET,
+                running: false,
+                message: ENABLE_WEBSOCKET
+                  ? "WebSocket server not started"
+                  : "WebSocket transport is disabled",
+              }),
+            },
+          ],
+        };
+      }
+
       default:
         return {
           content: [
@@ -1124,10 +2905,53 @@ async function main() {
   // Load any existing state from disk
   loadState();
 
+  // Initialize WebSocket transport if enabled (adv-b-001)
+  if (ENABLE_WEBSOCKET) {
+    try {
+      wsTransport = createWebSocketTransport(WEBSOCKET_PORT);
+      await wsTransport.start();
+      console.error(`WebSocket transport started on port ${WEBSOCKET_PORT}`);
+    } catch (error) {
+      console.error(`Failed to start WebSocket transport:`, error);
+    }
+  }
+
+  // Log advanced features status
+  console.error(`Advanced features status:`);
+  console.error(
+    `  - WebSocket transport: ${ENABLE_WEBSOCKET ? "enabled" : "disabled"}`,
+  );
+  console.error(
+    `  - Rate limiting: ${ENABLE_RATE_LIMITING ? "enabled" : "disabled"}`,
+  );
+  console.error(`  - Audit logging: enabled`);
+  console.error(`  - Batch operations: enabled`);
+  console.error(`  - Transaction support: enabled`);
+  console.error(`  - Query filtering: enabled`);
+  console.error(`  - Pagination: enabled`);
+  console.error(`  - Health check: enabled`);
+
   const transport = new StdioServerTransport();
   await server.connect(transport);
   console.error(`Claude Coordination MCP Server running on stdio`);
   console.error(`State file: ${STATE_FILE}`);
+
+  // Graceful shutdown handler
+  process.on("SIGINT", async () => {
+    console.error("Shutting down...");
+    if (wsTransport) {
+      await wsTransport.stop();
+    }
+    process.exit(0);
+  });
+
+  process.on("SIGTERM", async () => {
+    console.error("Shutting down...");
+    if (wsTransport) {
+      await wsTransport.stop();
+    }
+    process.exit(0);
+  });
 }
 
 main().catch(console.error);

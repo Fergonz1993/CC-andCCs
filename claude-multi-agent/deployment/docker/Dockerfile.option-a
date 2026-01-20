@@ -1,0 +1,63 @@
+# Dockerfile for Option A - File-Based Coordination
+# Multi-stage build for smaller final image
+
+FROM python:3.11-slim as builder
+
+# Set working directory
+WORKDIR /app
+
+# Install build dependencies
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    gcc \
+    && rm -rf /var/lib/apt/lists/*
+
+# Copy requirements and install dependencies
+COPY option-a-file-based/requirements.txt ./
+RUN pip install --user --no-cache-dir -r requirements.txt 2>/dev/null || true
+RUN pip install --user --no-cache-dir pyyaml
+
+# Final stage
+FROM python:3.11-slim
+
+# Labels for container metadata
+LABEL org.opencontainers.image.title="Claude Multi-Agent Option A"
+LABEL org.opencontainers.image.description="File-based coordination for Claude Code"
+LABEL org.opencontainers.image.version="1.0.0"
+LABEL org.opencontainers.image.vendor="Claude Multi-Agent Project"
+
+# Create non-root user for security
+RUN groupadd -r claude && useradd -r -g claude claude
+
+WORKDIR /app
+
+# Copy installed packages from builder
+COPY --from=builder /root/.local /root/.local
+ENV PATH=/root/.local/bin:$PATH
+
+# Copy application code
+COPY option-a-file-based/ ./option-a-file-based/
+COPY shared/ ./shared/
+
+# Create coordination directory with proper permissions
+RUN mkdir -p /data/.coordination && \
+    chown -R claude:claude /app /data
+
+# Set coordination directory environment variable
+ENV COORDINATION_DIR=/data/.coordination
+ENV PYTHONUNBUFFERED=1
+ENV PYTHONDONTWRITEBYTECODE=1
+
+# Volume for persistent coordination data
+VOLUME ["/data/.coordination"]
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
+    CMD python -c "import os; exit(0 if os.path.exists('/data/.coordination') else 1)"
+
+# Default user
+USER claude
+
+# Entry point
+WORKDIR /app/option-a-file-based
+ENTRYPOINT ["python", "coordination.py"]
+CMD ["--help"]

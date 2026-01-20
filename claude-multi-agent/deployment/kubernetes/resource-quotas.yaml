@@ -1,0 +1,177 @@
+# Resource Quota Management (adv-scale-010)
+---
+# Resource Quota for the namespace
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: claude-multiagent-quota
+  namespace: claude-multiagent
+  labels:
+    app.kubernetes.io/name: claude-multiagent
+    app.kubernetes.io/component: resource-management
+spec:
+  hard:
+    # Compute resources
+    requests.cpu: "20"
+    requests.memory: "40Gi"
+    limits.cpu: "40"
+    limits.memory: "80Gi"
+
+    # Storage
+    requests.storage: "200Gi"
+    persistentvolumeclaims: "20"
+
+    # Object counts
+    pods: "50"
+    services: "20"
+    secrets: "30"
+    configmaps: "30"
+    replicationcontrollers: "20"
+
+    # Resource-specific quotas
+    count/deployments.apps: "15"
+    count/statefulsets.apps: "10"
+    count/jobs.batch: "30"
+    count/cronjobs.batch: "10"
+
+---
+# Resource Quota for high-priority workloads
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: claude-high-priority-quota
+  namespace: claude-multiagent
+  labels:
+    app.kubernetes.io/name: claude-multiagent
+    app.kubernetes.io/component: resource-management
+spec:
+  hard:
+    requests.cpu: "10"
+    requests.memory: "20Gi"
+    limits.cpu: "20"
+    limits.memory: "40Gi"
+    pods: "20"
+  scopeSelector:
+    matchExpressions:
+      - scopeName: PriorityClass
+        operator: In
+        values:
+          - high-priority
+          - system-critical
+
+---
+# Limit Range for default resource constraints
+apiVersion: v1
+kind: LimitRange
+metadata:
+  name: claude-multiagent-limits
+  namespace: claude-multiagent
+  labels:
+    app.kubernetes.io/name: claude-multiagent
+    app.kubernetes.io/component: resource-management
+spec:
+  limits:
+    # Default container limits
+    - type: Container
+      default:
+        cpu: "1"
+        memory: "1Gi"
+      defaultRequest:
+        cpu: "100m"
+        memory: "256Mi"
+      max:
+        cpu: "4"
+        memory: "8Gi"
+      min:
+        cpu: "50m"
+        memory: "64Mi"
+
+    # Pod limits
+    - type: Pod
+      max:
+        cpu: "8"
+        memory: "16Gi"
+      min:
+        cpu: "50m"
+        memory: "64Mi"
+
+    # PVC limits
+    - type: PersistentVolumeClaim
+      max:
+        storage: "100Gi"
+      min:
+        storage: "1Gi"
+
+---
+# Priority Class for orchestrator components
+apiVersion: scheduling.k8s.io/v1
+kind: PriorityClass
+metadata:
+  name: high-priority
+  labels:
+    app.kubernetes.io/name: claude-multiagent
+    app.kubernetes.io/component: resource-management
+value: 1000000
+globalDefault: false
+description: "High priority for Claude orchestrator components"
+preemptionPolicy: PreemptLowerPriority
+
+---
+# Priority Class for worker components
+apiVersion: scheduling.k8s.io/v1
+kind: PriorityClass
+metadata:
+  name: worker-priority
+  labels:
+    app.kubernetes.io/name: claude-multiagent
+    app.kubernetes.io/component: resource-management
+value: 500000
+globalDefault: false
+description: "Medium priority for Claude worker components"
+preemptionPolicy: PreemptLowerPriority
+
+---
+# Priority Class for batch jobs
+apiVersion: scheduling.k8s.io/v1
+kind: PriorityClass
+metadata:
+  name: batch-priority
+  labels:
+    app.kubernetes.io/name: claude-multiagent
+    app.kubernetes.io/component: resource-management
+value: 100000
+globalDefault: false
+description: "Low priority for batch processing jobs"
+preemptionPolicy: Never
+
+---
+# Pod Disruption Budget for Orchestrator
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: orchestrator-pdb
+  namespace: claude-multiagent
+  labels:
+    app.kubernetes.io/name: claude-multiagent
+    app.kubernetes.io/component: orchestrator
+spec:
+  minAvailable: 2
+  selector:
+    matchLabels:
+      app: orchestrator
+
+---
+# Pod Disruption Budget for MCP Server
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: mcp-server-pdb
+  namespace: claude-multiagent
+  labels:
+    app.kubernetes.io/name: claude-multiagent
+    app.kubernetes.io/component: mcp-server
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app: mcp-server

@@ -1,0 +1,10 @@
+# Namespace for Claude Multi-Agent System
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: claude-multiagent
+  labels:
+    name: claude-multiagent
+    app.kubernetes.io/name: claude-multiagent
+    app.kubernetes.io/component: coordination
+    istio-injection: enabled  # Enable Istio sidecar injection

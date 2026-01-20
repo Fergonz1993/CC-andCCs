@@ -1,0 +1,98 @@
+{{- if and .Values.optionC.enabled .Values.optionC.autoscaling.enabled }}
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: {{ include "claude-multiagent.fullname" . }}-orchestrator
+  namespace: {{ include "claude-multiagent.namespace" . }}
+  labels:
+    {{- include "claude-multiagent.optionC.labels" . | nindent 4 }}
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: {{ include "claude-multiagent.fullname" . }}-orchestrator
+  minReplicas: {{ .Values.optionC.autoscaling.minReplicas }}
+  maxReplicas: {{ .Values.optionC.autoscaling.maxReplicas }}
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: {{ .Values.optionC.autoscaling.targetCPUUtilizationPercentage }}
+    - type: Resource
+      resource:
+        name: memory
+        target:
+          type: Utilization
+          averageUtilization: {{ .Values.optionC.autoscaling.targetMemoryUtilizationPercentage }}
+    {{- if .Values.optionC.autoscaling.customMetrics }}
+    {{- toYaml .Values.optionC.autoscaling.customMetrics | nindent 4 }}
+    {{- end }}
+  behavior:
+    scaleDown:
+      stabilizationWindowSeconds: 600
+      policies:
+        - type: Percent
+          value: 25
+          periodSeconds: 120
+        - type: Pods
+          value: 2
+          periodSeconds: 120
+      selectPolicy: Min
+    scaleUp:
+      stabilizationWindowSeconds: 0
+      policies:
+        - type: Percent
+          value: 100
+          periodSeconds: 15
+        - type: Pods
+          value: 4
+          periodSeconds: 15
+      selectPolicy: Max
+{{- end }}
+---
+{{- if and .Values.optionB.enabled .Values.optionB.autoscaling.enabled }}
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: {{ include "claude-multiagent.fullname" . }}-mcp-server
+  namespace: {{ include "claude-multiagent.namespace" . }}
+  labels:
+    {{- include "claude-multiagent.optionB.labels" . | nindent 4 }}
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: {{ include "claude-multiagent.fullname" . }}-mcp-server
+  minReplicas: {{ .Values.optionB.autoscaling.minReplicas }}
+  maxReplicas: {{ .Values.optionB.autoscaling.maxReplicas }}
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: {{ .Values.optionB.autoscaling.targetCPUUtilizationPercentage }}
+    - type: Resource
+      resource:
+        name: memory
+        target:
+          type: Utilization
+          averageUtilization: {{ .Values.optionB.autoscaling.targetMemoryUtilizationPercentage }}
+  behavior:
+    scaleDown:
+      stabilizationWindowSeconds: 300
+      policies:
+        - type: Percent
+          value: 10
+          periodSeconds: 60
+      selectPolicy: Min
+    scaleUp:
+      stabilizationWindowSeconds: 0
+      policies:
+        - type: Percent
+          value: 100
+          periodSeconds: 15
+      selectPolicy: Max
+{{- end }}

@@ -1,0 +1,50 @@
+name: 'Claude Coordinator GitHub Integration'
+description: 'Integrate Claude Multi-Agent Coordinator with GitHub Issues and PRs'
+author: 'Claude Code'
+
+branding:
+  icon: 'git-branch'
+  color: 'purple'
+
+inputs:
+  github-token:
+    description: 'GitHub token for API access'
+    required: true
+  action:
+    description: 'Action to perform: import-issues, sync-tasks, create-task-from-issue, link-pr, status-check'
+    required: true
+  coordination-dir:
+    description: 'Path to coordination directory'
+    required: false
+    default: '.coordination'
+  label:
+    description: 'Label to filter issues (for import-issues action)'
+    required: false
+  issue-number:
+    description: 'Issue number (for create-task-from-issue action)'
+    required: false
+  task-id:
+    description: 'Task ID (for link-pr action)'
+    required: false
+  pr-number:
+    description: 'PR number (for link-pr action)'
+    required: false
+  sha:
+    description: 'Commit SHA (for status-check action)'
+    required: false
+  status:
+    description: 'Check status: queued, in_progress, completed'
+    required: false
+  conclusion:
+    description: 'Check conclusion: success, failure, neutral'
+    required: false
+
+outputs:
+  task-id:
+    description: 'Created task ID'
+  tasks-created:
+    description: 'Number of tasks created'
+
+runs:
+  using: 'node20'
+  main: 'dist/index.js'

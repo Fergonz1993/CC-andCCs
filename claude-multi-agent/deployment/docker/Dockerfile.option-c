@@ -1,0 +1,76 @@
+# Dockerfile for Option C - External Orchestrator
+# Multi-stage build for smaller final image
+
+FROM python:3.11-slim as builder
+
+# Set working directory
+WORKDIR /app
+
+# Install build dependencies
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    gcc \
+    && rm -rf /var/lib/apt/lists/*
+
+# Copy project files
+COPY option-c-orchestrator/pyproject.toml ./
+COPY option-c-orchestrator/requirements.txt ./
+
+# Install dependencies
+RUN pip install --user --no-cache-dir -r requirements.txt
+RUN pip install --user --no-cache-dir hatchling
+
+# Copy source and build
+COPY option-c-orchestrator/ ./
+RUN pip install --user --no-cache-dir -e .
+
+# Final stage
+FROM python:3.11-slim
+
+# Labels for container metadata
+LABEL org.opencontainers.image.title="Claude Multi-Agent Option C"
+LABEL org.opencontainers.image.description="External orchestrator for Claude Code coordination"
+LABEL org.opencontainers.image.version="1.0.0"
+LABEL org.opencontainers.image.vendor="Claude Multi-Agent Project"
+
+# Create non-root user for security
+RUN groupadd -r claude && useradd -r -g claude claude
+
+WORKDIR /app
+
+# Copy installed packages from builder
+COPY --from=builder /root/.local /root/.local
+ENV PATH=/root/.local/bin:$PATH
+
+# Copy application code
+COPY option-c-orchestrator/ ./option-c-orchestrator/
+COPY shared/ ./shared/
+
+# Create directories with proper permissions
+RUN mkdir -p /data/.coordination /data/workspace && \
+    chown -R claude:claude /app /data
+
+# Environment configuration
+ENV PYTHONUNBUFFERED=1
+ENV PYTHONDONTWRITEBYTECODE=1
+ENV COORDINATION_DIR=/data/.coordination
+ENV ORCHESTRATOR_WORKSPACE=/data/workspace
+ENV ORCHESTRATOR_MAX_WORKERS=3
+ENV ORCHESTRATOR_TASK_TIMEOUT=600
+
+# Volume for persistent data
+VOLUME ["/data/.coordination", "/data/workspace"]
+
+# Expose metrics port
+EXPOSE 8080
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=10s --retries=3 \
+    CMD python -c "import orchestrator; print('healthy')" || exit 1
+
+# Run as non-root user
+USER claude
+
+# Entry point
+WORKDIR /app/option-c-orchestrator
+ENTRYPOINT ["python", "-m", "orchestrator.cli"]
+CMD ["--help"]

@@ -1,0 +1,142 @@
+# Deployment for Option B - MCP Server Broker
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mcp-server
+  namespace: claude-multiagent
+  labels:
+    app.kubernetes.io/name: claude-multiagent
+    app.kubernetes.io/component: mcp-server
+    app.kubernetes.io/version: "1.0.0"
+spec:
+  replicas: 2  # Multiple replicas for HA
+  selector:
+    matchLabels:
+      app: mcp-server
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  template:
+    metadata:
+      labels:
+        app: mcp-server
+        app.kubernetes.io/name: claude-multiagent
+        app.kubernetes.io/component: mcp-server
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "3000"
+        sidecar.istio.io/inject: "true"
+    spec:
+      serviceAccountName: claude-coordinator
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        fsGroup: 1000
+      containers:
+        - name: mcp-server
+          image: claude-multiagent/option-b:latest
+          imagePullPolicy: IfNotPresent
+          envFrom:
+            - configMapRef:
+                name: mcp-server-config
+            - secretRef:
+                name: mcp-server-secrets
+          env:
+            - name: POD_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+            - name: REDIS_HOST
+              value: "redis-master"
+            - name: REDIS_PORT
+              value: "6379"
+          ports:
+            - name: http
+              containerPort: 3000
+              protocol: TCP
+          volumeMounts:
+            - name: mcp-state
+              mountPath: /data/.coordination
+          resources:
+            requests:
+              cpu: "200m"
+              memory: "256Mi"
+            limits:
+              cpu: "1000m"
+              memory: "1Gi"
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 3000
+            initialDelaySeconds: 15
+            periodSeconds: 20
+            timeoutSeconds: 5
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /ready
+              port: 3000
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3
+      volumes:
+        - name: mcp-state
+          persistentVolumeClaim:
+            claimName: mcp-state-pvc
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              podAffinityTerm:
+                labelSelector:
+                  matchLabels:
+                    app: mcp-server
+                topologyKey: kubernetes.io/hostname
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: topology.kubernetes.io/zone
+          whenUnsatisfied: DoNotSchedule
+          labelSelector:
+            matchLabels:
+              app: mcp-server
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: mcp-server
+  namespace: claude-multiagent
+  labels:
+    app.kubernetes.io/name: claude-multiagent
+    app.kubernetes.io/component: mcp-server
+spec:
+  selector:
+    app: mcp-server
+  ports:
+    - name: http
+      port: 3000
+      targetPort: 3000
+  type: ClusterIP
+
+---
+# Headless service for internal communication
+apiVersion: v1
+kind: Service
+metadata:
+  name: mcp-server-headless
+  namespace: claude-multiagent
+  labels:
+    app.kubernetes.io/name: claude-multiagent
+    app.kubernetes.io/component: mcp-server
+spec:
+  clusterIP: None
+  selector:
+    app: mcp-server
+  ports:
+    - name: http
+      port: 3000
+      targetPort: 3000

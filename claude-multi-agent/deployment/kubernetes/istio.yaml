@@ -1,0 +1,245 @@
+# Istio Service Mesh Configuration (adv-scale-006)
+# Provides traffic management, security, and observability
+---
+# Virtual Service for traffic routing
+apiVersion: networking.istio.io/v1beta1
+kind: VirtualService
+metadata:
+  name: claude-multiagent-vs
+  namespace: claude-multiagent
+  labels:
+    app.kubernetes.io/name: claude-multiagent
+    app.kubernetes.io/component: istio
+spec:
+  hosts:
+    - claude-coordination.example.com
+    - orchestrator
+    - mcp-server
+  gateways:
+    - claude-multiagent-gateway
+  http:
+    # Orchestrator routes
+    - match:
+        - uri:
+            prefix: /api
+      route:
+        - destination:
+            host: orchestrator
+            port:
+              number: 8080
+      timeout: 60s
+      retries:
+        attempts: 3
+        perTryTimeout: 20s
+        retryOn: gateway-error,connect-failure,refused-stream
+
+    # MCP Server routes
+    - match:
+        - uri:
+            prefix: /mcp
+      route:
+        - destination:
+            host: mcp-server
+            port:
+              number: 3000
+      timeout: 120s
+      retries:
+        attempts: 2
+        perTryTimeout: 60s
+
+    # Default route
+    - route:
+        - destination:
+            host: orchestrator
+            port:
+              number: 8080
+          weight: 100
+
+---
+# Gateway for external traffic
+apiVersion: networking.istio.io/v1beta1
+kind: Gateway
+metadata:
+  name: claude-multiagent-gateway
+  namespace: claude-multiagent
+  labels:
+    app.kubernetes.io/name: claude-multiagent
+    app.kubernetes.io/component: istio
+spec:
+  selector:
+    istio: ingressgateway
+  servers:
+    - port:
+        number: 80
+        name: http
+        protocol: HTTP
+      hosts:
+        - claude-coordination.example.com
+      tls:
+        httpsRedirect: true
+    - port:
+        number: 443
+        name: https
+        protocol: HTTPS
+      hosts:
+        - claude-coordination.example.com
+      tls:
+        mode: SIMPLE
+        credentialName: claude-tls-secret
+
+---
+# Destination Rule for traffic policies
+apiVersion: networking.istio.io/v1beta1
+kind: DestinationRule
+metadata:
+  name: orchestrator-destination
+  namespace: claude-multiagent
+  labels:
+    app.kubernetes.io/name: claude-multiagent
+    app.kubernetes.io/component: istio
+spec:
+  host: orchestrator
+  trafficPolicy:
+    connectionPool:
+      tcp:
+        maxConnections: 100
+        connectTimeout: 30s
+      http:
+        h2UpgradePolicy: UPGRADE
+        http1MaxPendingRequests: 100
+        http2MaxRequests: 1000
+        maxRequestsPerConnection: 100
+        maxRetries: 3
+    loadBalancer:
+      simple: LEAST_CONN
+    outlierDetection:
+      consecutive5xxErrors: 5
+      interval: 10s
+      baseEjectionTime: 30s
+      maxEjectionPercent: 50
+      minHealthPercent: 30
+  subsets:
+    - name: v1
+      labels:
+        version: v1
+
+---
+# Destination Rule for MCP Server
+apiVersion: networking.istio.io/v1beta1
+kind: DestinationRule
+metadata:
+  name: mcp-server-destination
+  namespace: claude-multiagent
+  labels:
+    app.kubernetes.io/name: claude-multiagent
+    app.kubernetes.io/component: istio
+spec:
+  host: mcp-server
+  trafficPolicy:
+    connectionPool:
+      tcp:
+        maxConnections: 50
+      http:
+        http1MaxPendingRequests: 50
+        maxRequestsPerConnection: 50
+    loadBalancer:
+      simple: ROUND_ROBIN
+    outlierDetection:
+      consecutive5xxErrors: 3
+      interval: 10s
+      baseEjectionTime: 30s
+
+---
+# Peer Authentication for mTLS
+apiVersion: security.istio.io/v1beta1
+kind: PeerAuthentication
+metadata:
+  name: claude-multiagent-mtls
+  namespace: claude-multiagent
+  labels:
+    app.kubernetes.io/name: claude-multiagent
+    app.kubernetes.io/component: istio
+spec:
+  mtls:
+    mode: STRICT
+
+---
+# Authorization Policy
+apiVersion: security.istio.io/v1beta1
+kind: AuthorizationPolicy
+metadata:
+  name: claude-multiagent-authz
+  namespace: claude-multiagent
+  labels:
+    app.kubernetes.io/name: claude-multiagent
+    app.kubernetes.io/component: istio
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: claude-multiagent
+  action: ALLOW
+  rules:
+    - from:
+        - source:
+            namespaces: ["claude-multiagent", "istio-system"]
+      to:
+        - operation:
+            methods: ["GET", "POST", "PUT", "DELETE"]
+
+---
+# Service Entry for external API access (Claude API)
+apiVersion: networking.istio.io/v1beta1
+kind: ServiceEntry
+metadata:
+  name: claude-api
+  namespace: claude-multiagent
+  labels:
+    app.kubernetes.io/name: claude-multiagent
+    app.kubernetes.io/component: istio
+spec:
+  hosts:
+    - api.anthropic.com
+  ports:
+    - number: 443
+      name: https
+      protocol: HTTPS
+  location: MESH_EXTERNAL
+  resolution: DNS
+
+---
+# Request Authentication (JWT)
+apiVersion: security.istio.io/v1beta1
+kind: RequestAuthentication
+metadata:
+  name: claude-jwt-auth
+  namespace: claude-multiagent
+  labels:
+    app.kubernetes.io/name: claude-multiagent
+    app.kubernetes.io/component: istio
+spec:
+  selector:
+    matchLabels:
+      app: orchestrator
+  jwtRules:
+    - issuer: "https://auth.claude-coordination.example.com"
+      jwksUri: "https://auth.claude-coordination.example.com/.well-known/jwks.json"
+      audiences:
+        - "claude-multiagent"
+
+---
+# Sidecar configuration for resource limits
+apiVersion: networking.istio.io/v1beta1
+kind: Sidecar
+metadata:
+  name: claude-multiagent-sidecar
+  namespace: claude-multiagent
+  labels:
+    app.kubernetes.io/name: claude-multiagent
+    app.kubernetes.io/component: istio
+spec:
+  egress:
+    - hosts:
+        - "./*"
+        - "istio-system/*"
+  outboundTrafficPolicy:
+    mode: REGISTRY_ONLY

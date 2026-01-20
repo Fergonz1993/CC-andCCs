@@ -1,0 +1,262 @@
+# Multi-Region Deployment Support (adv-scale-009)
+# Configuration for deploying across multiple regions with data replication
+---
+# ConfigMap for region-specific configuration
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: region-config
+  namespace: claude-multiagent
+  labels:
+    app.kubernetes.io/name: claude-multiagent
+    app.kubernetes.io/component: multi-region
+data:
+  # Region identifier (set per cluster)
+  REGION_ID: "us-east-1"
+  REGION_NAME: "US East (N. Virginia)"
+
+  # Primary region flag
+  IS_PRIMARY_REGION: "true"
+
+  # Cross-region replication settings
+  REPLICATION_ENABLED: "true"
+  REPLICATION_TARGETS: "us-west-2,eu-west-1"
+
+  # Latency-aware routing
+  LATENCY_THRESHOLD_MS: "100"
+  FAILOVER_ENABLED: "true"
+  FAILOVER_TIMEOUT_SECONDS: "30"
+
+---
+# Service for cross-region traffic (ExternalName to remote region)
+apiVersion: v1
+kind: Service
+metadata:
+  name: orchestrator-us-west-2
+  namespace: claude-multiagent
+  labels:
+    app.kubernetes.io/name: claude-multiagent
+    app.kubernetes.io/component: multi-region
+spec:
+  type: ExternalName
+  externalName: orchestrator.claude-multiagent.us-west-2.svc.clusterset.local
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: orchestrator-eu-west-1
+  namespace: claude-multiagent
+  labels:
+    app.kubernetes.io/name: claude-multiagent
+    app.kubernetes.io/component: multi-region
+spec:
+  type: ExternalName
+  externalName: orchestrator.claude-multiagent.eu-west-1.svc.clusterset.local
+
+---
+# ServiceExport for multi-cluster service discovery (requires multi-cluster mesh)
+apiVersion: multicluster.x-k8s.io/v1alpha1
+kind: ServiceExport
+metadata:
+  name: orchestrator
+  namespace: claude-multiagent
+  labels:
+    app.kubernetes.io/name: claude-multiagent
+    app.kubernetes.io/component: multi-region
+
+---
+apiVersion: multicluster.x-k8s.io/v1alpha1
+kind: ServiceExport
+metadata:
+  name: mcp-server
+  namespace: claude-multiagent
+  labels:
+    app.kubernetes.io/name: claude-multiagent
+    app.kubernetes.io/component: multi-region
+
+---
+# Global Load Balancer configuration (GKE Multi-Cluster Ingress)
+apiVersion: networking.gke.io/v1
+kind: MultiClusterIngress
+metadata:
+  name: claude-multiagent-mci
+  namespace: claude-multiagent
+  labels:
+    app.kubernetes.io/name: claude-multiagent
+    app.kubernetes.io/component: multi-region
+spec:
+  template:
+    spec:
+      backend:
+        serviceName: orchestrator
+        servicePort: 8080
+      rules:
+        - host: claude-coordination.global.example.com
+          http:
+            paths:
+              - path: /
+                pathType: Prefix
+                backend:
+                  service:
+                    name: orchestrator
+                    port:
+                      number: 8080
+
+---
+# MultiClusterService for service discovery
+apiVersion: networking.gke.io/v1
+kind: MultiClusterService
+metadata:
+  name: orchestrator
+  namespace: claude-multiagent
+  labels:
+    app.kubernetes.io/name: claude-multiagent
+    app.kubernetes.io/component: multi-region
+spec:
+  template:
+    spec:
+      selector:
+        app: orchestrator
+      ports:
+        - name: http
+          port: 8080
+          targetPort: 8080
+
+---
+# Topology Aware Hints for locality-aware routing
+apiVersion: v1
+kind: Service
+metadata:
+  name: orchestrator-topology-aware
+  namespace: claude-multiagent
+  labels:
+    app.kubernetes.io/name: claude-multiagent
+    app.kubernetes.io/component: multi-region
+  annotations:
+    service.kubernetes.io/topology-aware-hints: "auto"
+spec:
+  selector:
+    app: orchestrator
+  ports:
+    - name: http
+      port: 8080
+      targetPort: 8080
+  type: ClusterIP
+
+---
+# Regional failover configuration via Istio
+apiVersion: networking.istio.io/v1beta1
+kind: VirtualService
+metadata:
+  name: orchestrator-failover
+  namespace: claude-multiagent
+  labels:
+    app.kubernetes.io/name: claude-multiagent
+    app.kubernetes.io/component: multi-region
+spec:
+  hosts:
+    - orchestrator
+  http:
+    - route:
+        # Primary region
+        - destination:
+            host: orchestrator
+          weight: 100
+      timeout: 5s
+      retries:
+        attempts: 3
+        perTryTimeout: 2s
+        retryOn: connect-failure,refused-stream,unavailable,retriable-4xx
+      fault:
+        abort:
+          percentage:
+            value: 0
+
+---
+# Cross-region state synchronization Job (runs periodically)
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: cross-region-sync
+  namespace: claude-multiagent
+  labels:
+    app.kubernetes.io/name: claude-multiagent
+    app.kubernetes.io/component: multi-region
+spec:
+  schedule: "*/5 * * * *"  # Every 5 minutes
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          serviceAccountName: claude-coordinator
+          containers:
+            - name: sync
+              image: claude-multiagent/sync:latest
+              envFrom:
+                - configMapRef:
+                    name: region-config
+                - secretRef:
+                    name: coordinator-secrets
+              env:
+                - name: REDIS_HOST
+                  value: "redis-master"
+                - name: SYNC_MODE
+                  value: "bidirectional"
+              resources:
+                requests:
+                  cpu: "100m"
+                  memory: "128Mi"
+                limits:
+                  cpu: "500m"
+                  memory: "512Mi"
+          restartPolicy: OnFailure
+
+---
+# Global rate limiting across regions
+apiVersion: networking.istio.io/v1alpha3
+kind: EnvoyFilter
+metadata:
+  name: global-rate-limit
+  namespace: claude-multiagent
+  labels:
+    app.kubernetes.io/name: claude-multiagent
+    app.kubernetes.io/component: multi-region
+spec:
+  workloadSelector:
+    labels:
+      app: orchestrator
+  configPatches:
+    - applyTo: HTTP_FILTER
+      match:
+        context: SIDECAR_INBOUND
+        listener:
+          filterChain:
+            filter:
+              name: "envoy.filters.network.http_connection_manager"
+      patch:
+        operation: INSERT_BEFORE
+        value:
+          name: envoy.filters.http.local_ratelimit
+          typed_config:
+            "@type": type.googleapis.com/udpa.type.v1.TypedStruct
+            type_url: type.googleapis.com/envoy.extensions.filters.http.local_ratelimit.v3.LocalRateLimit
+            value:
+              stat_prefix: http_local_rate_limiter
+              token_bucket:
+                max_tokens: 1000
+                tokens_per_fill: 100
+                fill_interval: 1s
+              filter_enabled:
+                runtime_key: local_rate_limit_enabled
+                default_value:
+                  numerator: 100
+                  denominator: HUNDRED
+              filter_enforced:
+                runtime_key: local_rate_limit_enforced
+                default_value:
+                  numerator: 100
+                  denominator: HUNDRED

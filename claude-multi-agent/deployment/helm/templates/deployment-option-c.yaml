@@ -1,0 +1,156 @@
+{{- if .Values.optionC.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "claude-multiagent.fullname" . }}-orchestrator
+  namespace: {{ include "claude-multiagent.namespace" . }}
+  labels:
+    {{- include "claude-multiagent.optionC.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.optionC.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "claude-multiagent.optionC.selectorLabels" . | nindent 6 }}
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 1
+  template:
+    metadata:
+      labels:
+        {{- include "claude-multiagent.optionC.selectorLabels" . | nindent 8 }}
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "{{ .Values.optionC.service.metricsPort }}"
+        {{- if .Values.istio.enabled }}
+        sidecar.istio.io/inject: "true"
+        {{- end }}
+    spec:
+      serviceAccountName: {{ include "claude-multiagent.serviceAccountName" . }}
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        fsGroup: 1000
+      {{- if .Values.optionC.priorityClassName }}
+      priorityClassName: {{ .Values.optionC.priorityClassName }}
+      {{- end }}
+      {{- if .Values.redis.enabled }}
+      initContainers:
+        - name: wait-for-redis
+          image: busybox:1.35
+          command: ['sh', '-c', 'until nc -z {{ .Release.Name }}-redis-master 6379; do echo waiting for redis; sleep 2; done;']
+      {{- end }}
+      containers:
+        - name: orchestrator
+          image: "{{ .Values.optionC.image.repository }}:{{ .Values.optionC.image.tag }}"
+          imagePullPolicy: {{ .Values.optionC.image.pullPolicy }}
+          env:
+            - name: POD_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+            - name: POD_NAMESPACE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
+            - name: ORCHESTRATOR_NODE_ID
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+            - name: ORCHESTRATOR_MAX_WORKERS
+              value: "{{ .Values.optionC.config.maxWorkers }}"
+            - name: ORCHESTRATOR_TASK_TIMEOUT
+              value: "{{ .Values.optionC.config.taskTimeout }}"
+            - name: ORCHESTRATOR_CLUSTER_MODE
+              value: "{{ .Values.optionC.config.clusterMode }}"
+            {{- if .Values.redis.enabled }}
+            - name: REDIS_HOST
+              value: "{{ .Release.Name }}-redis-master"
+            - name: REDIS_PORT
+              value: "6379"
+            - name: REDIS_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Release.Name }}-secrets
+                  key: REDIS_PASSWORD
+            {{- end }}
+          ports:
+            - name: http
+              containerPort: {{ .Values.optionC.service.port }}
+              protocol: TCP
+            - name: metrics
+              containerPort: {{ .Values.optionC.service.metricsPort }}
+              protocol: TCP
+          volumeMounts:
+            {{- if .Values.optionC.persistence.coordination.enabled }}
+            - name: coordination-data
+              mountPath: /data/.coordination
+            {{- end }}
+            {{- if .Values.optionC.persistence.workspace.enabled }}
+            - name: workspace
+              mountPath: /data/workspace
+            {{- end }}
+          resources:
+            {{- toYaml .Values.optionC.resources | nindent 12 }}
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 30
+            periodSeconds: 30
+            timeoutSeconds: 10
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /ready
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3
+      volumes:
+        {{- if .Values.optionC.persistence.coordination.enabled }}
+        - name: coordination-data
+          persistentVolumeClaim:
+            claimName: {{ include "claude-multiagent.fullname" . }}-coordination
+        {{- end }}
+        {{- if .Values.optionC.persistence.workspace.enabled }}
+        - name: workspace
+          persistentVolumeClaim:
+            claimName: {{ include "claude-multiagent.fullname" . }}-workspace
+        {{- end }}
+      affinity:
+        podAntiAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            - labelSelector:
+                matchLabels:
+                  {{- include "claude-multiagent.optionC.selectorLabels" . | nindent 18 }}
+              topologyKey: kubernetes.io/hostname
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: topology.kubernetes.io/zone
+          whenUnsatisfied: DoNotSchedule
+          labelSelector:
+            matchLabels:
+              {{- include "claude-multiagent.optionC.selectorLabels" . | nindent 14 }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "claude-multiagent.fullname" . }}-orchestrator
+  namespace: {{ include "claude-multiagent.namespace" . }}
+  labels:
+    {{- include "claude-multiagent.optionC.labels" . | nindent 4 }}
+spec:
+  selector:
+    {{- include "claude-multiagent.optionC.selectorLabels" . | nindent 4 }}
+  ports:
+    - name: http
+      port: {{ .Values.optionC.service.port }}
+      targetPort: http
+    - name: metrics
+      port: {{ .Values.optionC.service.metricsPort }}
+      targetPort: metrics
+  type: {{ .Values.optionC.service.type | default "ClusterIP" }}
+{{- end }}

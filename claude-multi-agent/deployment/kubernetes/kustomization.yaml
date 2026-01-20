@@ -1,0 +1,90 @@
+# Kustomization file for Claude Multi-Agent System
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+metadata:
+  name: claude-multiagent
+  annotations:
+    config.kubernetes.io/local-config: "true"
+
+namespace: claude-multiagent
+
+# Common labels
+commonLabels:
+  app.kubernetes.io/name: claude-multiagent
+  app.kubernetes.io/managed-by: kustomize
+  app.kubernetes.io/part-of: claude-coordination
+
+# Common annotations
+commonAnnotations:
+  owner: claude-multiagent-team
+
+# Resources to include
+resources:
+  - namespace.yaml
+  - configmap.yaml
+  - secrets.yaml
+  - storage.yaml
+  - rbac.yaml
+  - redis.yaml
+  - deployment-option-a.yaml
+  - deployment-option-b.yaml
+  - deployment-option-c.yaml
+  - hpa.yaml
+  - ingress.yaml
+  - resource-quotas.yaml
+  # Optional: Include for Istio-enabled clusters
+  # - istio.yaml
+  # Optional: Include for multi-region deployments
+  # - multi-region.yaml
+
+# ConfigMap generator for dynamic configuration
+configMapGenerator:
+  - name: deployment-info
+    literals:
+      - DEPLOYMENT_VERSION=1.0.0
+      - DEPLOYMENT_TIMESTAMP=2024-01-01T00:00:00Z
+
+# Secret generator (for non-sensitive defaults)
+secretGenerator:
+  - name: app-secrets
+    literals:
+      - placeholder=true
+    type: Opaque
+
+# Image configuration
+images:
+  - name: claude-multiagent/option-a
+    newTag: latest
+  - name: claude-multiagent/option-b
+    newTag: latest
+  - name: claude-multiagent/option-c
+    newTag: latest
+
+# Patches for environment-specific configurations
+patches:
+  # Example: Increase replicas for production
+  - patch: |-
+      - op: replace
+        path: /spec/replicas
+        value: 5
+    target:
+      kind: Deployment
+      name: orchestrator
+      namespace: claude-multiagent
+    # Enable only in production overlay
+    # options:
+    #   allowNameChange: true
+
+# Replica settings (can be overridden in overlays)
+replicas:
+  - name: mcp-server
+    count: 2
+  - name: orchestrator
+    count: 3
+
+# Resource name prefix (optional)
+# namePrefix: prod-
+
+# Resource name suffix (optional)
+# nameSuffix: -v1

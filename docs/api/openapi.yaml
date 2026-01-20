@@ -1,0 +1,819 @@
+openapi: 3.0.3
+info:
+  title: Claude Multi-Agent Coordination API
+  description: |
+    API specification for the Claude Multi-Agent Coordination System.
+
+    This document covers the HTTP/REST-style API that could be exposed by the coordination system.
+    Note that Option B (MCP Server) uses the Model Context Protocol rather than HTTP, but this
+    spec documents the logical API structure.
+
+    ## Authentication
+
+    In production deployments, API keys or JWT tokens should be used for authentication.
+    See the Security section for details.
+
+    ## Rate Limiting
+
+    Default rate limits:
+    - 100 requests per minute per agent
+    - 1000 requests per minute per coordination session
+
+  version: 1.0.0
+  contact:
+    name: API Support
+  license:
+    name: MIT
+    url: https://opensource.org/licenses/MIT
+
+servers:
+  - url: http://localhost:3000/api/v1
+    description: Local development server
+  - url: https://coordination.example.com/api/v1
+    description: Production server
+
+tags:
+  - name: coordination
+    description: Coordination session management
+  - name: tasks
+    description: Task queue operations
+  - name: agents
+    description: Agent registration and management
+  - name: discoveries
+    description: Shared discoveries between agents
+
+paths:
+  /coordination:
+    post:
+      tags:
+        - coordination
+      summary: Initialize coordination session
+      description: Create a new coordination session with a goal and optional master plan
+      operationId: initCoordination
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/InitCoordinationRequest'
+      responses:
+        '201':
+          description: Coordination session created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CoordinationSession'
+        '400':
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+    get:
+      tags:
+        - coordination
+      summary: Get coordination status
+      description: Get current status of the coordination session
+      operationId: getStatus
+      responses:
+        '200':
+          description: Current coordination status
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CoordinationStatus'
+        '404':
+          description: No active coordination session
+
+  /coordination/master-plan:
+    get:
+      tags:
+        - coordination
+      summary: Get master plan
+      description: Retrieve the master plan and goal
+      operationId: getMasterPlan
+      responses:
+        '200':
+          description: Master plan details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MasterPlan'
+
+  /tasks:
+    get:
+      tags:
+        - tasks
+      summary: List all tasks
+      description: Get all tasks with optional status filter
+      operationId: listTasks
+      parameters:
+        - name: status
+          in: query
+          description: Filter by task status
+          schema:
+            type: string
+            enum: [available, claimed, in_progress, done, failed, all]
+            default: all
+        - name: priority
+          in: query
+          description: Filter by priority (1-10)
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 10
+        - name: claimed_by
+          in: query
+          description: Filter by claiming agent
+          schema:
+            type: string
+      responses:
+        '200':
+          description: List of tasks
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  tasks:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Task'
+                  total:
+                    type: integer
+
+    post:
+      tags:
+        - tasks
+      summary: Create a task
+      description: Add a new task to the queue (leader only)
+      operationId: createTask
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateTaskRequest'
+      responses:
+        '201':
+          description: Task created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Task'
+        '400':
+          description: Invalid task data
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /tasks/batch:
+    post:
+      tags:
+        - tasks
+      summary: Create multiple tasks
+      description: Add multiple tasks at once (leader only)
+      operationId: createTasksBatch
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - tasks
+              properties:
+                tasks:
+                  type: array
+                  items:
+                    $ref: '#/components/schemas/CreateTaskRequest'
+      responses:
+        '201':
+          description: Tasks created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  created:
+                    type: integer
+                  task_ids:
+                    type: array
+                    items:
+                      type: string
+
+  /tasks/{taskId}:
+    get:
+      tags:
+        - tasks
+      summary: Get task details
+      description: Get details of a specific task
+      operationId: getTask
+      parameters:
+        - name: taskId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Task details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Task'
+        '404':
+          description: Task not found
+
+  /tasks/{taskId}/claim:
+    post:
+      tags:
+        - tasks
+      summary: Claim a task
+      description: Claim an available task for execution
+      operationId: claimTask
+      parameters:
+        - name: taskId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - agent_id
+              properties:
+                agent_id:
+                  type: string
+                  description: ID of the claiming agent
+      responses:
+        '200':
+          description: Task claimed successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Task'
+        '409':
+          description: Task already claimed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /tasks/{taskId}/start:
+    post:
+      tags:
+        - tasks
+      summary: Start a task
+      description: Mark a claimed task as in_progress
+      operationId: startTask
+      parameters:
+        - name: taskId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - agent_id
+              properties:
+                agent_id:
+                  type: string
+      responses:
+        '200':
+          description: Task started
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+
+  /tasks/{taskId}/complete:
+    post:
+      tags:
+        - tasks
+      summary: Complete a task
+      description: Mark a task as completed with results
+      operationId: completeTask
+      parameters:
+        - name: taskId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CompleteTaskRequest'
+      responses:
+        '200':
+          description: Task completed
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+
+  /tasks/{taskId}/fail:
+    post:
+      tags:
+        - tasks
+      summary: Fail a task
+      description: Mark a task as failed with error details
+      operationId: failTask
+      parameters:
+        - name: taskId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - agent_id
+                - error
+              properties:
+                agent_id:
+                  type: string
+                error:
+                  type: string
+      responses:
+        '200':
+          description: Task marked as failed
+
+  /tasks/claim-next:
+    post:
+      tags:
+        - tasks
+      summary: Claim next available task
+      description: Claim the highest priority available task
+      operationId: claimNextTask
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - agent_id
+              properties:
+                agent_id:
+                  type: string
+      responses:
+        '200':
+          description: Task claimed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Task'
+        '204':
+          description: No available tasks
+
+  /agents:
+    get:
+      tags:
+        - agents
+      summary: List agents
+      description: Get all registered agents
+      operationId: listAgents
+      responses:
+        '200':
+          description: List of agents
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  agents:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Agent'
+
+    post:
+      tags:
+        - agents
+      summary: Register agent
+      description: Register a new agent (leader or worker)
+      operationId: registerAgent
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RegisterAgentRequest'
+      responses:
+        '201':
+          description: Agent registered
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Agent'
+
+  /agents/{agentId}/heartbeat:
+    post:
+      tags:
+        - agents
+      summary: Send heartbeat
+      description: Signal that agent is still active
+      operationId: heartbeat
+      parameters:
+        - name: agentId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Heartbeat received
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+
+  /discoveries:
+    get:
+      tags:
+        - discoveries
+      summary: List discoveries
+      description: Get shared discoveries from all agents
+      operationId: listDiscoveries
+      parameters:
+        - name: tags
+          in: query
+          description: Filter by tags (comma-separated)
+          schema:
+            type: string
+        - name: limit
+          in: query
+          description: Maximum number of discoveries
+          schema:
+            type: integer
+            default: 20
+      responses:
+        '200':
+          description: List of discoveries
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  discoveries:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Discovery'
+
+    post:
+      tags:
+        - discoveries
+      summary: Add discovery
+      description: Share a discovery with other agents
+      operationId: addDiscovery
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AddDiscoveryRequest'
+      responses:
+        '201':
+          description: Discovery added
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Discovery'
+
+  /results:
+    get:
+      tags:
+        - tasks
+      summary: Get task results
+      description: Get results from completed tasks
+      operationId: getResults
+      parameters:
+        - name: task_ids
+          in: query
+          description: Specific task IDs (comma-separated)
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Task results
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  results:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/TaskResult'
+
+components:
+  schemas:
+    InitCoordinationRequest:
+      type: object
+      required:
+        - goal
+      properties:
+        goal:
+          type: string
+          description: The overall project goal
+          example: "Build a REST API for user management"
+        master_plan:
+          type: string
+          description: High-level plan or approach
+          example: "1. Design data models\n2. Implement CRUD endpoints\n3. Add authentication"
+
+    CoordinationSession:
+      type: object
+      properties:
+        id:
+          type: string
+        goal:
+          type: string
+        master_plan:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+
+    CoordinationStatus:
+      type: object
+      properties:
+        goal:
+          type: string
+        tasks:
+          type: object
+          properties:
+            available:
+              type: integer
+            claimed:
+              type: integer
+            in_progress:
+              type: integer
+            done:
+              type: integer
+            failed:
+              type: integer
+        total_tasks:
+          type: integer
+        progress_percent:
+          type: integer
+        agents:
+          type: object
+          properties:
+            total:
+              type: integer
+            leaders:
+              type: integer
+            workers:
+              type: integer
+            active:
+              type: integer
+        discoveries_count:
+          type: integer
+        last_activity:
+          type: string
+          format: date-time
+
+    MasterPlan:
+      type: object
+      properties:
+        goal:
+          type: string
+        master_plan:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+
+    Task:
+      type: object
+      required:
+        - id
+        - description
+        - status
+        - priority
+      properties:
+        id:
+          type: string
+          example: "task-20240115-a1b2"
+        description:
+          type: string
+          example: "Implement user authentication endpoint"
+        status:
+          type: string
+          enum: [available, claimed, in_progress, done, failed]
+        priority:
+          type: integer
+          minimum: 1
+          maximum: 10
+          example: 1
+        claimed_by:
+          type: string
+          nullable: true
+        dependencies:
+          type: array
+          items:
+            type: string
+        context:
+          $ref: '#/components/schemas/TaskContext'
+        result:
+          $ref: '#/components/schemas/TaskResult'
+        created_at:
+          type: string
+          format: date-time
+        claimed_at:
+          type: string
+          format: date-time
+          nullable: true
+        completed_at:
+          type: string
+          format: date-time
+          nullable: true
+
+    TaskContext:
+      type: object
+      properties:
+        files:
+          type: array
+          items:
+            type: string
+          example: ["src/auth/login.ts", "src/models/user.ts"]
+        hints:
+          type: string
+          example: "Use bcrypt for password hashing"
+        parent_task:
+          type: string
+
+    TaskResult:
+      type: object
+      properties:
+        output:
+          type: string
+        files_modified:
+          type: array
+          items:
+            type: string
+        files_created:
+          type: array
+          items:
+            type: string
+        error:
+          type: string
+
+    CreateTaskRequest:
+      type: object
+      required:
+        - description
+      properties:
+        description:
+          type: string
+        priority:
+          type: integer
+          minimum: 1
+          maximum: 10
+          default: 5
+        dependencies:
+          type: array
+          items:
+            type: string
+        context_files:
+          type: array
+          items:
+            type: string
+        hints:
+          type: string
+
+    CompleteTaskRequest:
+      type: object
+      required:
+        - agent_id
+        - output
+      properties:
+        agent_id:
+          type: string
+        output:
+          type: string
+        files_modified:
+          type: array
+          items:
+            type: string
+        files_created:
+          type: array
+          items:
+            type: string
+
+    Agent:
+      type: object
+      properties:
+        id:
+          type: string
+          example: "terminal-2"
+        role:
+          type: string
+          enum: [leader, worker]
+        last_heartbeat:
+          type: string
+          format: date-time
+        current_task:
+          type: string
+          nullable: true
+        tasks_completed:
+          type: integer
+
+    RegisterAgentRequest:
+      type: object
+      required:
+        - agent_id
+        - role
+      properties:
+        agent_id:
+          type: string
+        role:
+          type: string
+          enum: [leader, worker]
+        capabilities:
+          type: array
+          items:
+            type: string
+
+    Discovery:
+      type: object
+      properties:
+        id:
+          type: string
+        agent_id:
+          type: string
+        content:
+          type: string
+        tags:
+          type: array
+          items:
+            type: string
+        created_at:
+          type: string
+          format: date-time
+
+    AddDiscoveryRequest:
+      type: object
+      required:
+        - agent_id
+        - content
+      properties:
+        agent_id:
+          type: string
+        content:
+          type: string
+        tags:
+          type: array
+          items:
+            type: string
+
+    Error:
+      type: object
+      properties:
+        error:
+          type: string
+        message:
+          type: string
+        code:
+          type: string
+
+  securitySchemes:
+    ApiKeyAuth:
+      type: apiKey
+      in: header
+      name: X-API-Key
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+security:
+  - ApiKeyAuth: []
+  - BearerAuth: []

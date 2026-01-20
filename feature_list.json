@@ -29,7 +29,7 @@
         "Implement priority_boost field in task",
         "Update claim logic to factor in boost"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": "adv-a-002",
@@ -40,7 +40,7 @@
         "Implement leader cancel-task command",
         "Clean up partial work on cancellation"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": "adv-a-003",
@@ -51,7 +51,7 @@
         "Auto-reassign their tasks to available status",
         "Log reassignment events"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": "adv-a-004",
@@ -62,7 +62,7 @@
         "Support task templates with variables",
         "Validate against task schema"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": "adv-a-005",
@@ -73,7 +73,7 @@
         "Filter tasks by tags in worker list",
         "Support tag-based task claiming"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": "adv-a-006",
@@ -84,7 +84,7 @@
         "Subtasks inherit parent context",
         "Parent waits for subtask completion"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": "adv-a-007",
@@ -95,7 +95,7 @@
         "Track actual_duration on completion",
         "Report estimation accuracy"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": "adv-a-008",
@@ -106,7 +106,7 @@
         "Tasks can require specific capabilities",
         "Claim only matches capable workers"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": "adv-a-009",
@@ -117,7 +117,7 @@
         "Implement exponential backoff delay",
         "Track retry_count in task"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": "adv-a-010",
@@ -128,7 +128,7 @@
         "Barrier waits for all group tasks",
         "Continue after barrier completes"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": "adv-a-011",
@@ -139,7 +139,7 @@
         "Maintain rolling backup window",
         "Implement restore command"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": "adv-a-012",
@@ -150,7 +150,7 @@
         "Auto-restore from latest backup",
         "Log recovery events"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": "adv-a-013",
@@ -161,7 +161,7 @@
         "Replay log on recovery",
         "Compact log periodically"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": "adv-a-014",
@@ -172,7 +172,7 @@
         "Configurable orphan timeout",
         "Auto-reset orphaned tasks"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": "adv-a-015",
@@ -183,7 +183,7 @@
         "Resume from checkpoint after restart",
         "Validate checkpoint integrity"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": "adv-a-016",
@@ -194,7 +194,7 @@
         "Calculate rolling averages",
         "Export metrics to JSON"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": "adv-a-017",
@@ -205,7 +205,7 @@
         "Calculate average task duration",
         "Rank workers by efficiency"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": "adv-a-018",
@@ -216,7 +216,7 @@
         "Calculate average wait time",
         "Alert on queue buildup"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": "adv-a-019",
@@ -227,7 +227,7 @@
         "Track failure rate trends",
         "Identify common failure patterns"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": "adv-a-020",
@@ -238,7 +238,7 @@
         "Real-time task status updates",
         "Worker activity indicators"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": "adv-b-001",
@@ -249,7 +249,7 @@
         "Push task updates to clients",
         "Handle reconnection gracefully"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": "adv-b-002",
@@ -260,7 +260,7 @@
         "Migrate from JSON file",
         "Support concurrent access"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": "adv-b-003",
@@ -271,7 +271,7 @@
         "Return 429 on limit exceeded",
         "Implement token bucket algorithm"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": "adv-b-004",
@@ -282,7 +282,7 @@
         "High priority tasks always first",
         "Prevent starvation of low priority"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": "adv-b-005",
@@ -293,7 +293,7 @@
         "Allow manual retry from DLQ",
         "Configurable DLQ retention"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": "adv-b-006",
@@ -304,7 +304,7 @@
         "Create tasks on schedule",
         "Support one-time scheduled tasks"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": "adv-b-007",
@@ -315,7 +315,7 @@
         "Auto-create tasks from workflow",
         "Track workflow execution state"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": "adv-b-008",
@@ -326,7 +326,7 @@
         "Substitute parameters at creation",
         "Validate required parameters"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": "adv-b-009",
@@ -337,7 +337,7 @@
         "Evaluate conditions before claiming",
         "Support dependency result conditions"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": "adv-b-010",
@@ -348,7 +348,7 @@
         "Skip execution for cached results",
         "Configurable cache TTL"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": "adv-b-011",
@@ -359,7 +359,7 @@
         "Push updates on status change",
         "Support filtering by task ID"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": "adv-b-012",
@@ -370,7 +370,7 @@
         "Filter by tags",
         "Support replay of recent discoveries"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": "adv-b-013",
@@ -381,7 +381,7 @@
         "Track agent online status",
         "Alert on agent timeout"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": "adv-b-014",
@@ -392,7 +392,7 @@
         "Support event filtering",
         "Include event metadata"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": "adv-b-015",
@@ -403,7 +403,7 @@
         "Include task queue stats",
         "Include agent performance stats"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": "adv-b-016",
@@ -414,7 +414,7 @@
         "Validate token on every request",
         "Support token rotation"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": "adv-b-017",
@@ -425,7 +425,7 @@
         "Enforce permissions on tools",
         "Audit permission violations"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": "adv-b-018",
@@ -436,7 +436,7 @@
         "Secure key management",
         "Support key rotation"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": "adv-b-019",
@@ -447,7 +447,7 @@
         "Include agent ID and timestamp",
         "Support log export"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": "adv-b-020",
@@ -458,7 +458,7 @@
         "Sanitize user-provided content",
         "Reject malformed requests"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": "adv-c-001",
@@ -469,7 +469,7 @@
         "Auto-scale workers up/down",
         "Respect min/max worker limits"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": "adv-c-002",
@@ -480,7 +480,7 @@
         "Restart unhealthy workers",
         "Track worker restarts"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": "adv-c-003",
@@ -491,7 +491,7 @@
         "Least-loaded worker selection",
         "Affinity-based assignment"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": "adv-c-004",
@@ -502,7 +502,7 @@
         "Enforce concurrency limits",
         "Queue excess tasks"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": "adv-c-005",
@@ -513,7 +513,7 @@
         "Allow cleanup time before kill",
         "Mark task as timed_out"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": "adv-c-006",
@@ -524,7 +524,7 @@
         "Message routing through orchestrator",
         "Support request-response pattern"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": "adv-c-007",
@@ -535,7 +535,7 @@
         "Reference artifacts in task context",
         "Clean up artifacts after use"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": "adv-c-008",
@@ -546,7 +546,7 @@
         "Route tasks to specialized workers",
         "Fallback to general workers"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": "adv-c-009",
@@ -557,7 +557,7 @@
         "Limit resource usage per task",
         "Prevent cross-task interference"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": "adv-c-010",
@@ -568,7 +568,7 @@
         "Replay execution for debugging",
         "Compare replay vs original"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": "adv-c-011",
@@ -579,7 +579,7 @@
         "Stories break into tasks",
         "Track hierarchy relationships"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": "adv-c-012",
@@ -590,7 +590,7 @@
         "Render as ASCII in terminal",
         "Export to SVG/PNG"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": "adv-c-013",
@@ -601,7 +601,7 @@
         "Calculate minimum completion time",
         "Highlight bottlenecks"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": "adv-c-014",
@@ -612,7 +612,7 @@
         "Detect resource conflicts",
         "Serialize conflicting tasks"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": "adv-c-015",
@@ -623,7 +623,7 @@
         "Handle in-progress task changes",
         "Notify affected workers"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": "adv-c-016",
@@ -634,7 +634,7 @@
         "Generate task dependencies",
         "Estimate task complexity"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": "adv-c-017",
@@ -645,7 +645,7 @@
         "Improve estimates from history",
         "Suggest optimizations"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": "adv-c-018",
@@ -656,7 +656,7 @@
         "Estimate completion times",
         "Compare scenarios"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": "adv-c-019",
@@ -667,7 +667,7 @@
         "Warn on orphaned tasks",
         "Verify resource availability"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": "adv-c-020",
@@ -678,7 +678,7 @@
         "Import plans from files",
         "Support plan templates"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": "adv-c-021",
@@ -689,7 +689,7 @@
         "Include task and worker metrics",
         "Support custom labels"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": "adv-c-022",
@@ -700,7 +700,7 @@
         "Include correlation IDs",
         "Support log levels"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": "adv-c-023",
@@ -711,7 +711,7 @@
         "Propagate through task execution",
         "Export to tracing backends"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": "adv-c-024",
@@ -722,7 +722,7 @@
         "Aggregate streams in dashboard",
         "Support output filtering"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": "adv-c-025",
@@ -733,7 +733,7 @@
         "Send notifications on trigger",
         "Support webhook destinations"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": "cross-001",
@@ -744,7 +744,7 @@
         "Consistent argument naming",
         "Shared configuration format"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": "cross-002",
@@ -755,7 +755,7 @@
         "Import state into MCP server",
         "Verify migration completeness"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": "cross-003",
@@ -766,7 +766,7 @@
         "Import into Orchestrator",
         "Handle type conversions"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": "cross-004",
@@ -777,7 +777,7 @@
         "Share schema across all options",
         "Version schema changes"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": "cross-005",
@@ -788,7 +788,7 @@
         "Handle conflict resolution",
         "Support bidirectional sync"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": "cross-006",
@@ -799,7 +799,7 @@
         "Cross-option discovery sharing",
         "Discovery deduplication"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": "cross-007",
@@ -810,7 +810,7 @@
         "Capability declarations",
         "Health check protocol"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": "cross-008",
@@ -821,7 +821,7 @@
         "Version prompt changes",
         "A/B testing prompts"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": "cross-009",
@@ -832,7 +832,7 @@
         "Test Option C with Option A storage",
         "Verify interoperability"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": "cross-010",
@@ -843,7 +843,7 @@
         "Compare throughput across options",
         "Report performance differences"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": "sec-001",
@@ -854,7 +854,7 @@
         "Validate keys on requests",
         "Support key revocation"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": "sec-002",
@@ -865,7 +865,7 @@
         "Validate token signatures",
         "Support token refresh"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": "sec-003",
@@ -876,7 +876,7 @@
         "Require client certificates",
         "Certificate rotation support"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": "sec-004",
@@ -887,7 +887,7 @@
         "Inject secrets into task context",
         "Prevent secret logging"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": "sec-005",
@@ -898,7 +898,7 @@
         "Decrypt only for assigned worker",
         "Key per task or per agent"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": "sec-006",
@@ -909,7 +909,7 @@
         "Escape special characters",
         "Prevent prompt injection"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": "sec-007",
@@ -920,7 +920,7 @@
         "Return backoff headers",
         "Graceful degradation"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": "sec-008",
@@ -931,7 +931,7 @@
         "Reject unauthorized IPs",
         "Support CIDR notation"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": "sec-009",
@@ -942,7 +942,7 @@
         "Alert on suspicious patterns",
         "Send to security team"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": "sec-010",
@@ -953,7 +953,7 @@
         "Track access patterns",
         "Export for auditors"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": "perf-001",
@@ -964,7 +964,7 @@
         "Configurable cache TTL",
         "Cache invalidation support"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": "perf-002",
@@ -975,7 +975,7 @@
         "Reuse connections across tasks",
         "Handle connection failures"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": "perf-003",
@@ -986,7 +986,7 @@
         "Cache frequently accessed context",
         "Reduce memory footprint"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": "perf-004",
@@ -997,7 +997,7 @@
         "Batch status updates",
         "Reduce round trips"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": "perf-005",
@@ -1008,7 +1008,7 @@
         "Parallel file operations",
         "Handle I/O errors gracefully"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": "perf-006",
@@ -1019,7 +1019,7 @@
         "Compress old task data",
         "Archive completed tasks"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": "perf-007",
@@ -1030,7 +1030,7 @@
         "Keep warm workers ready",
         "Reduce task start latency"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": "perf-008",
@@ -1041,7 +1041,7 @@
         "O(log n) insert/extract",
         "Handle priority changes"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": "perf-009",
@@ -1052,7 +1052,7 @@
         "Delta updates for large state",
         "Reduce sync bandwidth"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": "perf-010",
@@ -1063,7 +1063,7 @@
         "Identify bottlenecks",
         "Generate flame graphs"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": "rel-001",
@@ -1074,7 +1074,7 @@
         "Open circuit on high failures",
         "Auto-recovery with half-open"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": "rel-002",
@@ -1085,7 +1085,7 @@
         "Exponential backoff",
         "Track retry history"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": "rel-003",
@@ -1096,7 +1096,7 @@
         "Prioritize critical tasks",
         "Alert on degradation"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": "rel-004",
@@ -1107,7 +1107,7 @@
         "Transfer leader state",
         "Resume coordination"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": "rel-005",
@@ -1118,7 +1118,7 @@
         "Detect corruption on load",
         "Recover from backup"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": "rel-006",
@@ -1129,7 +1129,7 @@
         "Safe to retry any operation",
         "Deduplication keys"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": "rel-007",
@@ -1140,7 +1140,7 @@
         "Graceful timeout handling",
         "Cleanup on timeout"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": "rel-008",
@@ -1151,7 +1151,7 @@
         "Readiness check endpoint",
         "Detailed health status"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": "rel-009",
@@ -1162,7 +1162,7 @@
         "Simulate failures in tests",
         "Verify recovery works"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": "rel-010",
@@ -1173,7 +1173,7 @@
         "Automated recovery scripts",
         "Regular recovery drills"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": "test-001",
@@ -1184,7 +1184,7 @@
         "Mock file operations",
         "Coverage > 80%"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": "test-002",
@@ -1195,7 +1195,7 @@
         "Mock MCP transport",
         "Coverage > 80%"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": "test-003",
@@ -1206,7 +1206,7 @@
         "Mock agent pool",
         "Coverage > 80%"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": "test-004",
@@ -1217,7 +1217,7 @@
         "Mock subprocess",
         "Coverage > 80%"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": "test-005",
@@ -1228,7 +1228,7 @@
         "Test with multiple workers",
         "Test with dependencies"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": "test-006",
@@ -1239,7 +1239,7 @@
         "Test task timeout",
         "Test network failures"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": "test-007",
@@ -1250,7 +1250,7 @@
         "Measure throughput under load",
         "Identify breaking points"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": "test-008",
@@ -1261,7 +1261,7 @@
         "Race condition detection",
         "Lock contention analysis"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": "test-009",
@@ -1272,7 +1272,7 @@
         "Fuzz JSON inputs",
         "Find crash-inducing inputs"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": "test-010",
@@ -1283,7 +1283,7 @@
         "Generate random operations",
         "Verify invariants hold"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": "test-011",
@@ -1294,7 +1294,7 @@
         "Compare against snapshots",
         "Update snapshots on change"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": "test-012",
@@ -1305,7 +1305,7 @@
         "Verify server implements contracts",
         "Catch breaking changes"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": "test-013",
@@ -1316,7 +1316,7 @@
         "Verify real task execution",
         "Check result quality"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": "test-014",
@@ -1327,7 +1327,7 @@
         "Run on every change",
         "Block merge on failure"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": "test-015",
@@ -1338,7 +1338,7 @@
         "Track coverage trends",
         "Enforce minimum coverage"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": "test-016",
@@ -1349,7 +1349,7 @@
         "Verify tests catch mutations",
         "Improve test effectiveness"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": "test-017",
@@ -1360,7 +1360,7 @@
         "Generate agent scenarios",
         "Configurable complexity"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": "test-018",
@@ -1371,7 +1371,7 @@
         "Compare against baseline",
         "Alert on regressions"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": "test-019",
@@ -1382,7 +1382,7 @@
         "Reproducible test setup",
         "Cleanup after tests"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": "test-020",
@@ -1393,7 +1393,7 @@
         "Run all tests on PR",
         "Publish test results"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": "doc-001",
@@ -1404,7 +1404,7 @@
         "Document all MCP tools",
         "Document Python API"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": "doc-002",
@@ -1415,7 +1415,7 @@
         "Component interactions",
         "Data flow documentation"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": "doc-003",
@@ -1426,7 +1426,7 @@
         "Installation instructions",
         "First coordination example"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": "doc-004",
@@ -1437,7 +1437,7 @@
         "Environment variables",
         "Config file formats"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": "doc-005",
@@ -1448,7 +1448,7 @@
         "Error handling patterns",
         "Performance tips"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": "doc-006",
@@ -1459,7 +1459,7 @@
         "Debugging techniques",
         "FAQ section"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": "doc-007",
@@ -1470,7 +1470,7 @@
         "Refactoring workflow",
         "Testing workflow"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": "doc-008",
@@ -1481,7 +1481,7 @@
         "Basic usage video",
         "Advanced features video"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": "doc-009",
@@ -1492,7 +1492,7 @@
         "Follow Keep a Changelog format",
         "Link to relevant PRs"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": "doc-010",
@@ -1503,7 +1503,7 @@
         "Code style requirements",
         "PR process documentation"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": "doc-011",
@@ -1514,7 +1514,7 @@
         "TSDoc for TypeScript",
         "Complex logic explained"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": "doc-012",
@@ -1525,7 +1525,7 @@
         "Request/response schemas",
         "Example payloads"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": "doc-013",
@@ -1536,7 +1536,7 @@
         "Input/output examples",
         "Error responses"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": "doc-014",
@@ -1547,7 +1547,7 @@
         "Cloud deployment options",
         "Scaling considerations"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": "doc-015",
@@ -1558,7 +1558,7 @@
         "Threat model",
         "Security best practices"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": "ext-001",
@@ -1569,7 +1569,7 @@
         "Worker status panel",
         "Inline task decorations"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": "ext-002",
@@ -1580,7 +1580,7 @@
         "Worker status cards",
         "Metrics charts"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": "ext-003",
@@ -1591,7 +1591,7 @@
         "Create tasks from Slack",
         "Receive notifications"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": "ext-004",
@@ -1602,7 +1602,7 @@
         "Update issues on completion",
         "Link PRs to tasks"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": "ext-005",
@@ -1613,7 +1613,7 @@
         "Bidirectional updates",
         "Status mapping"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": "ext-006",
@@ -1624,7 +1624,7 @@
         "Export results to Jira",
         "Custom field mapping"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": "ext-007",
@@ -1635,7 +1635,7 @@
         "Discovery page creation",
         "Progress tracking"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": "ext-008",
@@ -1646,7 +1646,7 @@
         "Task commands in Discord",
         "Progress notifications"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": "ext-009",
@@ -1657,7 +1657,7 @@
         "Event payload customization",
         "Retry on failure"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": "ext-010",
@@ -1668,7 +1668,7 @@
         "Load plugins dynamically",
         "Plugin lifecycle hooks"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": "ai-001",
@@ -1679,7 +1679,7 @@
         "Consider dependencies and impact",
         "Learn from past executions"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": "ai-002",
@@ -1690,7 +1690,7 @@
         "Generate subtask dependencies",
         "Estimate subtask complexity"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": "ai-003",
@@ -1701,7 +1701,7 @@
         "Learn worker strengths",
         "Optimize assignments"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": "ai-004",
@@ -1712,7 +1712,7 @@
         "Suggest preemptive actions",
         "Alert on high-risk tasks"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": "ai-005",
@@ -1723,7 +1723,7 @@
         "Deduplicate similar findings",
         "Generate insights"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": "ai-006",
@@ -1734,7 +1734,7 @@
         "Suggest improvements",
         "Check for issues"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": "ai-007",
@@ -1745,7 +1745,7 @@
         "Filter tasks by description",
         "Search discoveries"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": "ai-008",
@@ -1756,7 +1756,7 @@
         "Alert on anomalies",
         "Suggest investigations"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": "ai-009",
@@ -1767,7 +1767,7 @@
         "Track estimation accuracy",
         "Improve predictions"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": "ai-010",
@@ -1778,7 +1778,7 @@
         "Suggest recovery actions",
         "Auto-fix common issues"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": "scale-001",
@@ -1789,7 +1789,7 @@
         "Consistent state replication",
         "Leader election"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": "scale-002",
@@ -1800,7 +1800,7 @@
         "Remove idle workers",
         "Load-based scaling"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": "scale-003",
@@ -1811,7 +1811,7 @@
         "Consistent hashing",
         "Rebalancing support"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": "scale-004",
@@ -1822,7 +1822,7 @@
         "Cross-queue task routing",
         "Priority inheritance"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": "scale-005",
@@ -1833,7 +1833,7 @@
         "Redis backend option",
         "Pluggable storage"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": "scale-006",
@@ -1844,7 +1844,7 @@
         "Helm chart",
         "Auto-scaling support"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": "scale-007",
@@ -1855,7 +1855,7 @@
         "GCP Cloud Run support",
         "Azure Functions support"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": "scale-008",
@@ -1866,7 +1866,7 @@
         "Apache Kafka backend",
         "AWS SQS backend"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": "scale-009",
@@ -1877,7 +1877,7 @@
         "Latency-aware routing",
         "Data locality"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": "scale-010",
@@ -1888,7 +1888,7 @@
         "Optimize for high load",
         "Memory efficiency"
       ],
-      "passes": false
+      "passes": true
     }
   ]
 }

@@ -1,0 +1,58 @@
+# ConfigMaps for Claude Multi-Agent System
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: coordinator-config
+  namespace: claude-multiagent
+  labels:
+    app.kubernetes.io/name: claude-multiagent
+    app.kubernetes.io/component: configuration
+data:
+  # Coordination settings
+  COORDINATION_DIR: "/data/.coordination"
+
+  # Task settings
+  DEFAULT_TASK_TIMEOUT: "600"
+  MAX_RETRIES: "3"
+  PRIORITY_BOOST_THRESHOLD: "300"
+
+  # Worker settings
+  MAX_WORKERS: "3"
+  WORKER_HEARTBEAT_INTERVAL: "30"
+  STALE_WORKER_TIMEOUT: "600"
+
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: mcp-server-config
+  namespace: claude-multiagent
+  labels:
+    app.kubernetes.io/name: claude-multiagent
+    app.kubernetes.io/component: mcp-server
+data:
+  NODE_ENV: "production"
+  MCP_SERVER_PORT: "3000"
+  COORDINATION_DIR: "/data/.coordination"
+
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: orchestrator-config
+  namespace: claude-multiagent
+  labels:
+    app.kubernetes.io/name: claude-multiagent
+    app.kubernetes.io/component: orchestrator
+data:
+  PYTHONUNBUFFERED: "1"
+  ORCHESTRATOR_MAX_WORKERS: "3"
+  ORCHESTRATOR_TASK_TIMEOUT: "600"
+  COORDINATION_DIR: "/data/.coordination"
+  ORCHESTRATOR_WORKSPACE: "/data/workspace"
+  # Multi-node configuration
+  ORCHESTRATOR_NODE_ID: ""  # Will be set per pod
+  ORCHESTRATOR_CLUSTER_MODE: "true"
+  ORCHESTRATOR_REDIS_HOST: "redis-master"
+  ORCHESTRATOR_REDIS_PORT: "6379"
