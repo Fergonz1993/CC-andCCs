@@ -89,3 +89,72 @@ Tasks must specify: `id`, `description`, `status`, `priority` (1=highest). Depen
 
 - **Option A**: Workers must re-read `tasks.json` after claiming to verify success
 - **Options B & C**: Built-in atomic operations
+
+---
+
+## Long-Running Development Harness
+
+This project uses the "Effective Harnesses for Long-Running Agents" methodology from Anthropic for continuous development across multiple Claude sessions.
+
+### Harness Files
+
+| File | Purpose |
+|------|---------|
+| `init.sh` | Environment setup script (run first) |
+| `feature_list.json` | 210 features to implement and verify |
+| `claude-progress.txt` | Progress tracking between sessions |
+| `CODING_AGENT.md` | Complete session instructions |
+
+### Quick Start
+
+```bash
+# 1. Setup environment
+chmod +x init.sh && ./init.sh
+
+# 2. Check current progress
+cat claude-progress.txt
+
+# 3. See remaining features
+cat feature_list.json | python3 -c "
+import json,sys
+d=json.load(sys.stdin)
+passing=sum(1 for f in d['features'] if f['passes'])
+print(f'Progress: {passing}/{len(d[\"features\"])} features passing')
+"
+```
+
+### Development Workflow
+
+1. **Start**: Read `claude-progress.txt` to orient yourself
+2. **Setup**: Run `./init.sh` if environment needs setup
+3. **Verify**: Check existing tests still pass
+4. **Implement**: Pick ONE feature from `feature_list.json`
+5. **Update**: Mark `"passes": true` when verified
+6. **Commit**: Commit with clear message
+7. **Document**: Update `claude-progress.txt`
+8. **Repeat**: Continue until context fills
+
+### Feature Categories
+
+- `option-a-*`: File-based coordination (50 features)
+- `option-b-*`: MCP server (45 features)
+- `option-c-*`: Python orchestrator (105 features)
+- `integration`: End-to-end tests (10 features)
+
+### Progress Tracking
+
+The `claude-progress.txt` file tracks:
+- Overall feature counts per option
+- Priority queue of what to work on next
+- Known issues and their fixes
+- Session history with summaries
+- Test results log
+
+### For New Sessions
+
+Read `CODING_AGENT.md` for detailed instructions on:
+- Getting oriented in a new session
+- Running verification tests
+- Choosing features to implement
+- Updating progress files
+- Committing changes cleanly

@@ -1,0 +1,97 @@
+# Claude Progress Notes - CC-and-CCs Multi-Agent Coordination
+# ===========================================================
+#
+# This file maintains development progress across Claude sessions.
+# INSTRUCTIONS: Read this file at the START of each session to orient yourself.
+#
+# File Locations:
+#   - feature_list.json: 210 features to implement/verify
+#   - CODING_AGENT.md: Detailed session instructions
+#   - init.sh: Environment setup script
+#   - CLAUDE.md: Project context
+#
+# ===========================================================
+
+## Current State
+
+Total Features: 210
+- Option A (File-Based): 0/50 passing
+- Option B (MCP Broker): 0/45 passing
+- Option C (Orchestrator): 0/105 passing
+- Integration: 0/10 passing
+
+Overall Progress: 0/210 (0%)
+
+## Priority Queue
+
+High Priority (fix these first):
+1. [ ] Verify Option C imports work (int-006, int-007, int-008)
+2. [ ] Verify Option B builds correctly (opt-b-build-001, opt-b-build-002)
+3. [ ] Verify Option A CLI works (opt-a-init-001 through opt-a-init-010)
+
+Medium Priority:
+4. [ ] Task model tests (opt-c-model-001 through opt-c-model-030)
+5. [ ] CLI tests (opt-c-cli-001 through opt-c-cli-025)
+
+Low Priority (polish):
+6. [ ] Integration tests
+7. [ ] Documentation improvements
+
+## Known Issues
+
+1. Option C agent.py uses --print which exits after one prompt
+   - Impact: Workers can't execute multiple tasks
+   - Fix needed: Spawn new process per task OR use Claude SDK directly
+
+2. No dependency cycle detection in add_task()
+   - Impact: Could create deadlock with circular deps
+   - Fix needed: Add topological sort validation
+
+3. No worker crash recovery
+   - Impact: Crashed workers leave tasks in limbo
+   - Fix needed: Heartbeat timeout + task reset
+
+## Session Format
+
+When starting a session, add an entry below:
+
+```
+[YYYY-MM-DD HH:MM] SESSION #N - <your-summary>
+- What you worked on
+- Features tested: X passing, Y failing
+- Commits made
+- Next steps
+```
+
+## Session Log
+
+<!-- Add new sessions at the top -->
+
+[2026-01-19 21:30] SESSION #0 - Initial Harness Setup
+- Created long-running development harness
+- Files created: init.sh, feature_list.json, claude-progress.txt, CODING_AGENT.md
+- Updated CLAUDE.md with harness documentation
+- Features tested: 0 (harness setup only)
+- Next: Run init.sh, verify setup, start testing features
+
+## Test Results Log
+
+Format: [DATE] FEATURE_ID | PASS/FAIL | Notes
+
+<!-- Add test results here as you verify features -->
+
+
+## Discoveries
+
+Important findings to share across sessions:
+
+<!-- Add discoveries here -->
+
+
+## Notes
+
+- The feature_list.json contains 210 features organized by category
+- Each feature has specific test steps - follow them exactly
+- Only mark a feature as "passes": true after thorough verification
+- Commit frequently to avoid losing work
+- If context fills up, update this file first before ending session

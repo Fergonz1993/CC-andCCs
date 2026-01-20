@@ -1,0 +1,2280 @@
+{
+  "project": "CC-and-CCs Multi-Agent Coordination System",
+  "version": "1.0.0",
+  "description": "Feature list for long-running autonomous development across sessions",
+  "total_features": 210,
+  "categories": {
+    "option-a-init": 10,
+    "option-a-leader": 15,
+    "option-a-worker": 15,
+    "option-a-locking": 10,
+    "option-b-build": 10,
+    "option-b-tools": 25,
+    "option-b-resources": 10,
+    "option-c-models": 30,
+    "option-c-agent": 25,
+    "option-c-orchestrator": 25,
+    "option-c-cli": 25,
+    "integration": 10
+  },
+  "features": [
+    {
+      "id": "opt-a-init-001",
+      "category": "option-a-init",
+      "description": "coordination.py leader init creates .coordination directory",
+      "steps": [
+        "cd claude-multi-agent/option-a-file-based",
+        "rm -rf .coordination",
+        "python coordination.py leader init 'Test goal'",
+        "Verify .coordination/ directory exists",
+        "Verify exit code is 0"
+      ],
+      "passes": false
+    },
+    {
+      "id": "opt-a-init-002",
+      "category": "option-a-init",
+      "description": "leader init creates master-plan.md with goal",
+      "steps": [
+        "cd claude-multi-agent/option-a-file-based",
+        "rm -rf .coordination",
+        "python coordination.py leader init 'Build a REST API'",
+        "Verify .coordination/master-plan.md exists",
+        "Verify file contains 'Build a REST API'"
+      ],
+      "passes": false
+    },
+    {
+      "id": "opt-a-init-003",
+      "category": "option-a-init",
+      "description": "leader init creates tasks.json with correct structure",
+      "steps": [
+        "cd claude-multi-agent/option-a-file-based",
+        "rm -rf .coordination",
+        "python coordination.py leader init 'Test'",
+        "Verify .coordination/tasks.json exists",
+        "Verify JSON has 'version', 'tasks' keys"
+      ],
+      "passes": false
+    },
+    {
+      "id": "opt-a-init-004",
+      "category": "option-a-init",
+      "description": "leader init creates context subdirectory",
+      "steps": [
+        "cd claude-multi-agent/option-a-file-based",
+        "rm -rf .coordination",
+        "python coordination.py leader init 'Test'",
+        "Verify .coordination/context/ directory exists"
+      ],
+      "passes": false
+    },
+    {
+      "id": "opt-a-init-005",
+      "category": "option-a-init",
+      "description": "leader init creates logs subdirectory",
+      "steps": [
+        "cd claude-multi-agent/option-a-file-based",
+        "rm -rf .coordination",
+        "python coordination.py leader init 'Test'",
+        "Verify .coordination/logs/ directory exists"
+      ],
+      "passes": false
+    },
+    {
+      "id": "opt-a-init-006",
+      "category": "option-a-init",
+      "description": "leader init creates results subdirectory",
+      "steps": [
+        "cd claude-multi-agent/option-a-file-based",
+        "rm -rf .coordination",
+        "python coordination.py leader init 'Test'",
+        "Verify .coordination/results/ directory exists"
+      ],
+      "passes": false
+    },
+    {
+      "id": "opt-a-init-007",
+      "category": "option-a-init",
+      "description": "leader init creates discoveries.md file",
+      "steps": [
+        "cd claude-multi-agent/option-a-file-based",
+        "rm -rf .coordination",
+        "python coordination.py leader init 'Test'",
+        "Verify .coordination/context/discoveries.md exists"
+      ],
+      "passes": false
+    },
+    {
+      "id": "opt-a-init-008",
+      "category": "option-a-init",
+      "description": "leader init with --approach sets approach in master-plan",
+      "steps": [
+        "cd claude-multi-agent/option-a-file-based",
+        "rm -rf .coordination",
+        "python coordination.py leader init 'Test' --approach 'Use TDD'",
+        "Verify master-plan.md contains 'Use TDD'"
+      ],
+      "passes": false
+    },
+    {
+      "id": "opt-a-init-009",
+      "category": "option-a-init",
+      "description": "leader init is idempotent (can run twice)",
+      "steps": [
+        "cd claude-multi-agent/option-a-file-based",
+        "rm -rf .coordination",
+        "python coordination.py leader init 'Test'",
+        "python coordination.py leader init 'Test2'",
+        "Verify no errors, master-plan.md updated"
+      ],
+      "passes": false
+    },
+    {
+      "id": "opt-a-init-010",
+      "category": "option-a-init",
+      "description": "leader init logs action to leader.log",
+      "steps": [
+        "cd claude-multi-agent/option-a-file-based",
+        "rm -rf .coordination",
+        "python coordination.py leader init 'Test goal'",
+        "Verify .coordination/logs/leader.log exists",
+        "Verify log contains 'INIT'"
+      ],
+      "passes": false
+    },
+    {
+      "id": "opt-a-leader-001",
+      "category": "option-a-leader",
+      "description": "leader add-task creates task with unique ID",
+      "steps": [
+        "cd claude-multi-agent/option-a-file-based",
+        "python coordination.py leader init 'Test'",
+        "python coordination.py leader add-task 'Implement feature X'",
+        "Verify tasks.json has task with 'task-' prefix ID"
+      ],
+      "passes": false
+    },
+    {
+      "id": "opt-a-leader-002",
+      "category": "option-a-leader",
+      "description": "leader add-task sets status to available",
+      "steps": [
+        "cd claude-multi-agent/option-a-file-based",
+        "python coordination.py leader init 'Test'",
+        "python coordination.py leader add-task 'Task 1'",
+        "Verify task status is 'available' in tasks.json"
+      ],
+      "passes": false
+    },
+    {
+      "id": "opt-a-leader-003",
+      "category": "option-a-leader",
+      "description": "leader add-task respects --priority flag",
+      "steps": [
+        "cd claude-multi-agent/option-a-file-based",
+        "python coordination.py leader init 'Test'",
+        "python coordination.py leader add-task 'High priority' -p 1",
+        "Verify task has priority 1"
+      ],
+      "passes": false
+    },
+    {
+      "id": "opt-a-leader-004",
+      "category": "option-a-leader",
+      "description": "leader add-task accepts --depends flag",
+      "steps": [
+        "cd claude-multi-agent/option-a-file-based",
+        "python coordination.py leader init 'Test'",
+        "python coordination.py leader add-task 'Task 1'",
+        "Get TASK_ID from output",
+        "python coordination.py leader add-task 'Task 2' --depends $TASK_ID",
+        "Verify Task 2 has dependency on Task 1"
+      ],
+      "passes": false
+    },
+    {
+      "id": "opt-a-leader-005",
+      "category": "option-a-leader",
+      "description": "leader add-task accepts --files flag for context",
+      "steps": [
+        "cd claude-multi-agent/option-a-file-based",
+        "python coordination.py leader init 'Test'",
+        "python coordination.py leader add-task 'Review code' -f src/main.py",
+        "Verify task context.files contains 'src/main.py'"
+      ],
+      "passes": false
+    },
+    {
+      "id": "opt-a-leader-006",
+      "category": "option-a-leader",
+      "description": "leader add-task accepts --hints flag",
+      "steps": [
+        "cd claude-multi-agent/option-a-file-based",
+        "python coordination.py leader init 'Test'",
+        "python coordination.py leader add-task 'Task' --hints 'Use pytest'",
+        "Verify task context.hints is 'Use pytest'"
+      ],
+      "passes": false
+    },
+    {
+      "id": "opt-a-leader-007",
+      "category": "option-a-leader",
+      "description": "leader status shows task counts by status",
+      "steps": [
+        "cd claude-multi-agent/option-a-file-based",
+        "python coordination.py leader init 'Test'",
+        "python coordination.py leader add-task 'Task 1'",
+        "python coordination.py leader add-task 'Task 2'",
+        "python coordination.py leader status",
+        "Verify output shows 'AVAILABLE (2)'"
+      ],
+      "passes": false
+    },
+    {
+      "id": "opt-a-leader-008",
+      "category": "option-a-leader",
+      "description": "leader status shows progress percentage",
+      "steps": [
+        "cd claude-multi-agent/option-a-file-based",
+        "python coordination.py leader init 'Test'",
+        "python coordination.py leader add-task 'Task 1'",
+        "python coordination.py leader status",
+        "Verify output shows progress percentage"
+      ],
+      "passes": false
+    },
+    {
+      "id": "opt-a-leader-009",
+      "category": "option-a-leader",
+      "description": "leader aggregate creates summary.md",
+      "steps": [
+        "cd claude-multi-agent/option-a-file-based",
+        "python coordination.py leader init 'Test'",
+        "Create .coordination/results/task-001.md manually",
+        "python coordination.py leader aggregate",
+        "Verify .coordination/summary.md exists"
+      ],
+      "passes": false
+    },
+    {
+      "id": "opt-a-leader-010",
+      "category": "option-a-leader",
+      "description": "leader add-task sets created_at timestamp",
+      "steps": [
+        "cd claude-multi-agent/option-a-file-based",
+        "python coordination.py leader init 'Test'",
+        "python coordination.py leader add-task 'Task'",
+        "Verify task has 'created_at' field in ISO format"
+      ],
+      "passes": false
+    },
+    {
+      "id": "opt-a-leader-011",
+      "category": "option-a-leader",
+      "description": "leader add-task logs action",
+      "steps": [
+        "cd claude-multi-agent/option-a-file-based",
+        "python coordination.py leader init 'Test'",
+        "python coordination.py leader add-task 'New task'",
+        "Verify leader.log contains 'ADD_TASK'"
+      ],
+      "passes": false
+    },
+    {
+      "id": "opt-a-leader-012",
+      "category": "option-a-leader",
+      "description": "tasks.json last_updated changes on add-task",
+      "steps": [
+        "cd claude-multi-agent/option-a-file-based",
+        "python coordination.py leader init 'Test'",
+        "Record initial last_updated",
+        "sleep 1",
+        "python coordination.py leader add-task 'Task'",
+        "Verify last_updated changed"
+      ],
+      "passes": false
+    },
+    {
+      "id": "opt-a-leader-013",
+      "category": "option-a-leader",
+      "description": "leader status handles empty task queue",
+      "steps": [
+        "cd claude-multi-agent/option-a-file-based",
+        "python coordination.py leader init 'Test'",
+        "python coordination.py leader status",
+        "Verify no errors, shows 0 tasks"
+      ],
+      "passes": false
+    },
+    {
+      "id": "opt-a-leader-014",
+      "category": "option-a-leader",
+      "description": "default priority is 5",
+      "steps": [
+        "cd claude-multi-agent/option-a-file-based",
+        "python coordination.py leader init 'Test'",
+        "python coordination.py leader add-task 'No priority specified'",
+        "Verify task priority is 5"
+      ],
+      "passes": false
+    },
+    {
+      "id": "opt-a-leader-015",
+      "category": "option-a-leader",
+      "description": "leader aggregate handles no results",
+      "steps": [
+        "cd claude-multi-agent/option-a-file-based",
+        "python coordination.py leader init 'Test'",
+        "python coordination.py leader aggregate",
+        "Verify appropriate message about no results"
+      ],
+      "passes": false
+    },
+    {
+      "id": "opt-a-worker-001",
+      "category": "option-a-worker",
+      "description": "worker claim claims highest priority task",
+      "steps": [
+        "cd claude-multi-agent/option-a-file-based",
+        "python coordination.py leader init 'Test'",
+        "python coordination.py leader add-task 'Low' -p 5",
+        "python coordination.py leader add-task 'High' -p 1",
+        "python coordination.py worker claim terminal-1",
+        "Verify 'High' task is claimed (priority 1)"
+      ],
+      "passes": false
+    },
+    {
+      "id": "opt-a-worker-002",
+      "category": "option-a-worker",
+      "description": "worker claim sets claimed_by field",
+      "steps": [
+        "cd claude-multi-agent/option-a-file-based",
+        "python coordination.py leader init 'Test'",
+        "python coordination.py leader add-task 'Task'",
+        "python coordination.py worker claim terminal-2",
+        "Verify task claimed_by is 'terminal-2'"
+      ],
+      "passes": false
+    },
+    {
+      "id": "opt-a-worker-003",
+      "category": "option-a-worker",
+      "description": "worker claim sets status to claimed",
+      "steps": [
+        "cd claude-multi-agent/option-a-file-based",
+        "python coordination.py leader init 'Test'",
+        "python coordination.py leader add-task 'Task'",
+        "python coordination.py worker claim terminal-1",
+        "Verify task status is 'claimed'"
+      ],
+      "passes": false
+    },
+    {
+      "id": "opt-a-worker-004",
+      "category": "option-a-worker",
+      "description": "worker claim sets claimed_at timestamp",
+      "steps": [
+        "cd claude-multi-agent/option-a-file-based",
+        "python coordination.py leader init 'Test'",
+        "python coordination.py leader add-task 'Task'",
+        "python coordination.py worker claim terminal-1",
+        "Verify task has 'claimed_at' timestamp"
+      ],
+      "passes": false
+    },
+    {
+      "id": "opt-a-worker-005",
+      "category": "option-a-worker",
+      "description": "worker claim respects dependencies",
+      "steps": [
+        "cd claude-multi-agent/option-a-file-based",
+        "python coordination.py leader init 'Test'",
+        "python coordination.py leader add-task 'Task 1'",
+        "Get TASK1_ID",
+        "python coordination.py leader add-task 'Task 2' --depends $TASK1_ID",
+        "python coordination.py worker claim terminal-1",
+        "Verify Task 1 is claimed, not Task 2"
+      ],
+      "passes": false
+    },
+    {
+      "id": "opt-a-worker-006",
+      "category": "option-a-worker",
+      "description": "worker start changes status to in_progress",
+      "steps": [
+        "cd claude-multi-agent/option-a-file-based",
+        "python coordination.py leader init 'Test'",
+        "python coordination.py leader add-task 'Task'",
+        "python coordination.py worker claim terminal-1",
+        "Get TASK_ID",
+        "python coordination.py worker start terminal-1 $TASK_ID",
+        "Verify status is 'in_progress'"
+      ],
+      "passes": false
+    },
+    {
+      "id": "opt-a-worker-007",
+      "category": "option-a-worker",
+      "description": "worker complete changes status to done",
+      "steps": [
+        "cd claude-multi-agent/option-a-file-based",
+        "python coordination.py leader init 'Test'",
+        "python coordination.py leader add-task 'Task'",
+        "python coordination.py worker claim terminal-1",
+        "Get TASK_ID",
+        "python coordination.py worker complete terminal-1 $TASK_ID 'Done!'",
+        "Verify status is 'done'"
+      ],
+      "passes": false
+    },
+    {
+      "id": "opt-a-worker-008",
+      "category": "option-a-worker",
+      "description": "worker complete creates result file",
+      "steps": [
+        "cd claude-multi-agent/option-a-file-based",
+        "python coordination.py leader init 'Test'",
+        "python coordination.py leader add-task 'Task'",
+        "python coordination.py worker claim terminal-1",
+        "Get TASK_ID",
+        "python coordination.py worker complete terminal-1 $TASK_ID 'Done!'",
+        "Verify .coordination/results/$TASK_ID.md exists"
+      ],
+      "passes": false
+    },
+    {
+      "id": "opt-a-worker-009",
+      "category": "option-a-worker",
+      "description": "worker complete sets completed_at timestamp",
+      "steps": [
+        "cd claude-multi-agent/option-a-file-based",
+        "python coordination.py leader init 'Test'",
+        "python coordination.py leader add-task 'Task'",
+        "python coordination.py worker claim terminal-1",
+        "Get TASK_ID",
+        "python coordination.py worker complete terminal-1 $TASK_ID 'Done!'",
+        "Verify task has 'completed_at' timestamp"
+      ],
+      "passes": false
+    },
+    {
+      "id": "opt-a-worker-010",
+      "category": "option-a-worker",
+      "description": "worker fail changes status to failed",
+      "steps": [
+        "cd claude-multi-agent/option-a-file-based",
+        "python coordination.py leader init 'Test'",
+        "python coordination.py leader add-task 'Task'",
+        "python coordination.py worker claim terminal-1",
+        "Get TASK_ID",
+        "python coordination.py worker fail terminal-1 $TASK_ID 'Error occurred'",
+        "Verify status is 'failed'"
+      ],
+      "passes": false
+    },
+    {
+      "id": "opt-a-worker-011",
+      "category": "option-a-worker",
+      "description": "worker fail stores error in result",
+      "steps": [
+        "cd claude-multi-agent/option-a-file-based",
+        "python coordination.py leader init 'Test'",
+        "python coordination.py leader add-task 'Task'",
+        "python coordination.py worker claim terminal-1",
+        "Get TASK_ID",
+        "python coordination.py worker fail terminal-1 $TASK_ID 'Specific error'",
+        "Verify result.error contains 'Specific error'"
+      ],
+      "passes": false
+    },
+    {
+      "id": "opt-a-worker-012",
+      "category": "option-a-worker",
+      "description": "worker list shows available tasks",
+      "steps": [
+        "cd claude-multi-agent/option-a-file-based",
+        "python coordination.py leader init 'Test'",
+        "python coordination.py leader add-task 'Task 1'",
+        "python coordination.py leader add-task 'Task 2'",
+        "python coordination.py worker list",
+        "Verify output shows both tasks"
+      ],
+      "passes": false
+    },
+    {
+      "id": "opt-a-worker-013",
+      "category": "option-a-worker",
+      "description": "worker list hides tasks with unmet dependencies",
+      "steps": [
+        "cd claude-multi-agent/option-a-file-based",
+        "python coordination.py leader init 'Test'",
+        "python coordination.py leader add-task 'Task 1'",
+        "Get TASK1_ID",
+        "python coordination.py leader add-task 'Task 2' --depends $TASK1_ID",
+        "python coordination.py worker list",
+        "Verify only Task 1 is shown as available"
+      ],
+      "passes": false
+    },
+    {
+      "id": "opt-a-worker-014",
+      "category": "option-a-worker",
+      "description": "worker complete accepts --modified flag",
+      "steps": [
+        "cd claude-multi-agent/option-a-file-based",
+        "python coordination.py leader init 'Test'",
+        "python coordination.py leader add-task 'Task'",
+        "python coordination.py worker claim terminal-1",
+        "Get TASK_ID",
+        "python coordination.py worker complete terminal-1 $TASK_ID 'Done' -m src/file.py",
+        "Verify result.files_modified contains 'src/file.py'"
+      ],
+      "passes": false
+    },
+    {
+      "id": "opt-a-worker-015",
+      "category": "option-a-worker",
+      "description": "worker complete accepts --created flag",
+      "steps": [
+        "cd claude-multi-agent/option-a-file-based",
+        "python coordination.py leader init 'Test'",
+        "python coordination.py leader add-task 'Task'",
+        "python coordination.py worker claim terminal-1",
+        "Get TASK_ID",
+        "python coordination.py worker complete terminal-1 $TASK_ID 'Done' -c new_file.py",
+        "Verify result.files_created contains 'new_file.py'"
+      ],
+      "passes": false
+    },
+    {
+      "id": "opt-a-lock-001",
+      "category": "option-a-locking",
+      "description": "file_lock creates .lock file",
+      "steps": [
+        "cd claude-multi-agent/option-a-file-based",
+        "python coordination.py leader init 'Test'",
+        "Verify .coordination/tasks.json.lock exists after operations"
+      ],
+      "passes": false
+    },
+    {
+      "id": "opt-a-lock-002",
+      "category": "option-a-locking",
+      "description": "worker claim re-reads to verify claim succeeded",
+      "steps": [
+        "Examine coordination.py worker_claim function",
+        "Verify it re-reads tasks.json after claiming",
+        "Verify it checks claimed_by matches terminal_id"
+      ],
+      "passes": false
+    },
+    {
+      "id": "opt-a-lock-003",
+      "category": "option-a-locking",
+      "description": "worker claim handles race condition by retrying",
+      "steps": [
+        "Examine coordination.py worker_claim function",
+        "Verify recursive retry on race condition"
+      ],
+      "passes": false
+    },
+    {
+      "id": "opt-a-lock-004",
+      "category": "option-a-locking",
+      "description": "load_tasks uses shared (read) lock",
+      "steps": [
+        "Examine coordination.py load_tasks function",
+        "Verify file_lock is called with exclusive=False"
+      ],
+      "passes": false
+    },
+    {
+      "id": "opt-a-lock-005",
+      "category": "option-a-locking",
+      "description": "save_tasks uses exclusive (write) lock",
+      "steps": [
+        "Examine coordination.py save_tasks function",
+        "Verify file_lock is called with exclusive=True"
+      ],
+      "passes": false
+    },
+    {
+      "id": "opt-a-lock-006",
+      "category": "option-a-locking",
+      "description": "fcntl locking used on Unix",
+      "steps": [
+        "Examine coordination.py file_lock context manager",
+        "Verify fcntl.flock is used for non-win32 platforms"
+      ],
+      "passes": false
+    },
+    {
+      "id": "opt-a-lock-007",
+      "category": "option-a-locking",
+      "description": "msvcrt locking used on Windows",
+      "steps": [
+        "Examine coordination.py file_lock context manager",
+        "Verify msvcrt.locking is used for win32 platform"
+      ],
+      "passes": false
+    },
+    {
+      "id": "opt-a-lock-008",
+      "category": "option-a-locking",
+      "description": "lock file is created if missing",
+      "steps": [
+        "Examine coordination.py file_lock context manager",
+        "Verify lock_file.touch(exist_ok=True) is called"
+      ],
+      "passes": false
+    },
+    {
+      "id": "opt-a-lock-009",
+      "category": "option-a-locking",
+      "description": "lock is released in finally block",
+      "steps": [
+        "Examine coordination.py file_lock context manager",
+        "Verify unlock happens in finally clause"
+      ],
+      "passes": false
+    },
+    {
+      "id": "opt-a-lock-010",
+      "category": "option-a-locking",
+      "description": "register command creates agents.json",
+      "steps": [
+        "cd claude-multi-agent/option-a-file-based",
+        "python coordination.py leader init 'Test'",
+        "python coordination.py register --agent-id worker-1 --capabilities 'coding'",
+        "Verify .coordination/agents.json exists"
+      ],
+      "passes": false
+    },
+    {
+      "id": "opt-b-build-001",
+      "category": "option-b-build",
+      "description": "npm run build compiles TypeScript without errors",
+      "steps": [
+        "cd claude-multi-agent/option-b-mcp-broker",
+        "npm run build",
+        "Verify exit code is 0"
+      ],
+      "passes": false
+    },
+    {
+      "id": "opt-b-build-002",
+      "category": "option-b-build",
+      "description": "dist/index.js is created after build",
+      "steps": [
+        "cd claude-multi-agent/option-b-mcp-broker",
+        "npm run build",
+        "Verify dist/index.js exists"
+      ],
+      "passes": false
+    },
+    {
+      "id": "opt-b-build-003",
+      "category": "option-b-build",
+      "description": "dist/index.d.ts type declarations are generated",
+      "steps": [
+        "cd claude-multi-agent/option-b-mcp-broker",
+        "npm run build",
+        "Verify dist/index.d.ts exists"
+      ],
+      "passes": false
+    },
+    {
+      "id": "opt-b-build-004",
+      "category": "option-b-build",
+      "description": "package.json has correct main entry",
+      "steps": [
+        "Read package.json",
+        "Verify 'main' points to 'dist/index.js'"
+      ],
+      "passes": false
+    },
+    {
+      "id": "opt-b-build-005",
+      "category": "option-b-build",
+      "description": "package.json has build script",
+      "steps": [
+        "Read package.json scripts",
+        "Verify 'build' script exists"
+      ],
+      "passes": false
+    },
+    {
+      "id": "opt-b-build-006",
+      "category": "option-b-build",
+      "description": "package.json has start script",
+      "steps": [
+        "Read package.json scripts",
+        "Verify 'start' script exists"
+      ],
+      "passes": false
+    },
+    {
+      "id": "opt-b-build-007",
+      "category": "option-b-build",
+      "description": "@modelcontextprotocol/sdk is in dependencies",
+      "steps": [
+        "Read package.json dependencies",
+        "Verify @modelcontextprotocol/sdk is listed"
+      ],
+      "passes": false
+    },
+    {
+      "id": "opt-b-build-008",
+      "category": "option-b-build",
+      "description": "uuid package is in dependencies",
+      "steps": [
+        "Read package.json dependencies",
+        "Verify uuid is listed"
+      ],
+      "passes": false
+    },
+    {
+      "id": "opt-b-build-009",
+      "category": "option-b-build",
+      "description": "tsconfig.json has correct settings",
+      "steps": [
+        "Read tsconfig.json",
+        "Verify outDir is 'dist'",
+        "Verify declaration is true"
+      ],
+      "passes": false
+    },
+    {
+      "id": "opt-b-build-010",
+      "category": "option-b-build",
+      "description": "mcp-config.example.json exists",
+      "steps": [
+        "cd claude-multi-agent/option-b-mcp-broker",
+        "Verify mcp-config.example.json exists",
+        "Verify it shows valid MCP server config structure"
+      ],
+      "passes": false
+    },
+    {
+      "id": "opt-b-tools-001",
+      "category": "option-b-tools",
+      "description": "init_coordination tool is registered",
+      "steps": [
+        "Examine index.ts ListToolsRequestSchema handler",
+        "Verify init_coordination tool is in tools array"
+      ],
+      "passes": false
+    },
+    {
+      "id": "opt-b-tools-002",
+      "category": "option-b-tools",
+      "description": "create_task tool is registered",
+      "steps": [
+        "Examine index.ts ListToolsRequestSchema handler",
+        "Verify create_task tool is in tools array"
+      ],
+      "passes": false
+    },
+    {
+      "id": "opt-b-tools-003",
+      "category": "option-b-tools",
+      "description": "create_tasks_batch tool is registered",
+      "steps": [
+        "Examine index.ts ListToolsRequestSchema handler",
+        "Verify create_tasks_batch tool is in tools array"
+      ],
+      "passes": false
+    },
+    {
+      "id": "opt-b-tools-004",
+      "category": "option-b-tools",
+      "description": "get_status tool is registered",
+      "steps": [
+        "Examine index.ts ListToolsRequestSchema handler",
+        "Verify get_status tool is in tools array"
+      ],
+      "passes": false
+    },
+    {
+      "id": "opt-b-tools-005",
+      "category": "option-b-tools",
+      "description": "get_all_tasks tool is registered",
+      "steps": [
+        "Examine index.ts ListToolsRequestSchema handler",
+        "Verify get_all_tasks tool is in tools array"
+      ],
+      "passes": false
+    },
+    {
+      "id": "opt-b-tools-006",
+      "category": "option-b-tools",
+      "description": "get_results tool is registered",
+      "steps": [
+        "Examine index.ts ListToolsRequestSchema handler",
+        "Verify get_results tool is in tools array"
+      ],
+      "passes": false
+    },
+    {
+      "id": "opt-b-tools-007",
+      "category": "option-b-tools",
+      "description": "register_agent tool is registered",
+      "steps": [
+        "Examine index.ts ListToolsRequestSchema handler",
+        "Verify register_agent tool is in tools array"
+      ],
+      "passes": false
+    },
+    {
+      "id": "opt-b-tools-008",
+      "category": "option-b-tools",
+      "description": "claim_task tool is registered",
+      "steps": [
+        "Examine index.ts ListToolsRequestSchema handler",
+        "Verify claim_task tool is in tools array"
+      ],
+      "passes": false
+    },
+    {
+      "id": "opt-b-tools-009",
+      "category": "option-b-tools",
+      "description": "start_task tool is registered",
+      "steps": [
+        "Examine index.ts ListToolsRequestSchema handler",
+        "Verify start_task tool is in tools array"
+      ],
+      "passes": false
+    },
+    {
+      "id": "opt-b-tools-010",
+      "category": "option-b-tools",
+      "description": "complete_task tool is registered",
+      "steps": [
+        "Examine index.ts ListToolsRequestSchema handler",
+        "Verify complete_task tool is in tools array"
+      ],
+      "passes": false
+    },
+    {
+      "id": "opt-b-tools-011",
+      "category": "option-b-tools",
+      "description": "fail_task tool is registered",
+      "steps": [
+        "Examine index.ts ListToolsRequestSchema handler",
+        "Verify fail_task tool is in tools array"
+      ],
+      "passes": false
+    },
+    {
+      "id": "opt-b-tools-012",
+      "category": "option-b-tools",
+      "description": "heartbeat tool is registered",
+      "steps": [
+        "Examine index.ts ListToolsRequestSchema handler",
+        "Verify heartbeat tool is in tools array"
+      ],
+      "passes": false
+    },
+    {
+      "id": "opt-b-tools-013",
+      "category": "option-b-tools",
+      "description": "add_discovery tool is registered",
+      "steps": [
+        "Examine index.ts ListToolsRequestSchema handler",
+        "Verify add_discovery tool is in tools array"
+      ],
+      "passes": false
+    },
+    {
+      "id": "opt-b-tools-014",
+      "category": "option-b-tools",
+      "description": "get_discoveries tool is registered",
+      "steps": [
+        "Examine index.ts ListToolsRequestSchema handler",
+        "Verify get_discoveries tool is in tools array"
+      ],
+      "passes": false
+    },
+    {
+      "id": "opt-b-tools-015",
+      "category": "option-b-tools",
+      "description": "get_master_plan tool is registered",
+      "steps": [
+        "Examine index.ts ListToolsRequestSchema handler",
+        "Verify get_master_plan tool is in tools array"
+      ],
+      "passes": false
+    },
+    {
+      "id": "opt-b-tools-016",
+      "category": "option-b-tools",
+      "description": "createTask function generates unique IDs",
+      "steps": [
+        "Examine index.ts createTask function",
+        "Verify generateTaskId() is called",
+        "Verify ID format is 'task-{timestamp}-{random}'"
+      ],
+      "passes": false
+    },
+    {
+      "id": "opt-b-tools-017",
+      "category": "option-b-tools",
+      "description": "claimTask returns null when no tasks available",
+      "steps": [
+        "Examine index.ts claimTask function",
+        "Verify it returns null when getAvailableTasks() is empty"
+      ],
+      "passes": false
+    },
+    {
+      "id": "opt-b-tools-018",
+      "category": "option-b-tools",
+      "description": "claimTask sorts by priority",
+      "steps": [
+        "Examine index.ts claimTask function",
+        "Verify available.sort by priority ascending"
+      ],
+      "passes": false
+    },
+    {
+      "id": "opt-b-tools-019",
+      "category": "option-b-tools",
+      "description": "completeTask updates agent metrics",
+      "steps": [
+        "Examine index.ts completeTask function",
+        "Verify agent.tasks_completed is incremented"
+      ],
+      "passes": false
+    },
+    {
+      "id": "opt-b-tools-020",
+      "category": "option-b-tools",
+      "description": "heartbeat updates last_heartbeat",
+      "steps": [
+        "Examine index.ts heartbeat function",
+        "Verify agent.last_heartbeat is set to current time"
+      ],
+      "passes": false
+    },
+    {
+      "id": "opt-b-tools-021",
+      "category": "option-b-tools",
+      "description": "state is persisted to disk on changes",
+      "steps": [
+        "Examine index.ts updateActivity function",
+        "Verify saveState() is called"
+      ],
+      "passes": false
+    },
+    {
+      "id": "opt-b-tools-022",
+      "category": "option-b-tools",
+      "description": "state is loaded from disk on startup",
+      "steps": [
+        "Examine index.ts main function",
+        "Verify loadState() is called"
+      ],
+      "passes": false
+    },
+    {
+      "id": "opt-b-tools-023",
+      "category": "option-b-tools",
+      "description": "COORDINATION_DIR env var is respected",
+      "steps": [
+        "Examine index.ts STATE_DIR constant",
+        "Verify process.env.COORDINATION_DIR is used"
+      ],
+      "passes": false
+    },
+    {
+      "id": "opt-b-tools-024",
+      "category": "option-b-tools",
+      "description": "state file path is .coordination/mcp-state.json",
+      "steps": [
+        "Examine index.ts STATE_FILE constant",
+        "Verify path includes 'mcp-state.json'"
+      ],
+      "passes": false
+    },
+    {
+      "id": "opt-b-tools-025",
+      "category": "option-b-tools",
+      "description": "agents Map converts to/from Record for JSON",
+      "steps": [
+        "Examine index.ts saveState and loadState functions",
+        "Verify Map <-> Object.entries conversion"
+      ],
+      "passes": false
+    },
+    {
+      "id": "opt-b-res-001",
+      "category": "option-b-resources",
+      "description": "coordination://status resource is registered",
+      "steps": [
+        "Examine index.ts ListResourcesRequestSchema handler",
+        "Verify coordination://status resource is listed"
+      ],
+      "passes": false
+    },
+    {
+      "id": "opt-b-res-002",
+      "category": "option-b-resources",
+      "description": "coordination://tasks resource is registered",
+      "steps": [
+        "Examine index.ts ListResourcesRequestSchema handler",
+        "Verify coordination://tasks resource is listed"
+      ],
+      "passes": false
+    },
+    {
+      "id": "opt-b-res-003",
+      "category": "option-b-resources",
+      "description": "coordination://discoveries resource is registered",
+      "steps": [
+        "Examine index.ts ListResourcesRequestSchema handler",
+        "Verify coordination://discoveries resource is listed"
+      ],
+      "passes": false
+    },
+    {
+      "id": "opt-b-res-004",
+      "category": "option-b-resources",
+      "description": "coordination://master-plan resource is registered",
+      "steps": [
+        "Examine index.ts ListResourcesRequestSchema handler",
+        "Verify coordination://master-plan resource is listed"
+      ],
+      "passes": false
+    },
+    {
+      "id": "opt-b-res-005",
+      "category": "option-b-resources",
+      "description": "ReadResourceRequestSchema handles status URI",
+      "steps": [
+        "Examine index.ts ReadResourceRequestSchema handler",
+        "Verify case 'coordination://status' returns getStatus()"
+      ],
+      "passes": false
+    },
+    {
+      "id": "opt-b-res-006",
+      "category": "option-b-resources",
+      "description": "ReadResourceRequestSchema handles tasks URI",
+      "steps": [
+        "Examine index.ts ReadResourceRequestSchema handler",
+        "Verify case 'coordination://tasks' returns tasks array"
+      ],
+      "passes": false
+    },
+    {
+      "id": "opt-b-res-007",
+      "category": "option-b-resources",
+      "description": "ReadResourceRequestSchema handles discoveries URI",
+      "steps": [
+        "Examine index.ts ReadResourceRequestSchema handler",
+        "Verify case 'coordination://discoveries' returns discoveries"
+      ],
+      "passes": false
+    },
+    {
+      "id": "opt-b-res-008",
+      "category": "option-b-resources",
+      "description": "ReadResourceRequestSchema handles master-plan URI",
+      "steps": [
+        "Examine index.ts ReadResourceRequestSchema handler",
+        "Verify case 'coordination://master-plan' returns goal/plan"
+      ],
+      "passes": false
+    },
+    {
+      "id": "opt-b-res-009",
+      "category": "option-b-resources",
+      "description": "Unknown resource throws error",
+      "steps": [
+        "Examine index.ts ReadResourceRequestSchema handler",
+        "Verify default case throws 'Unknown resource' error"
+      ],
+      "passes": false
+    },
+    {
+      "id": "opt-b-res-010",
+      "category": "option-b-resources",
+      "description": "Resources return application/json mimeType",
+      "steps": [
+        "Examine index.ts ListResourcesRequestSchema handler",
+        "Verify all resources have mimeType: 'application/json'"
+      ],
+      "passes": false
+    },
+    {
+      "id": "opt-c-model-001",
+      "category": "option-c-models",
+      "description": "Task model generates ID with task- prefix",
+      "steps": [
+        "python -c \"from orchestrator.models import Task; t = Task(description='Test'); print(t.id)\"",
+        "Verify ID starts with 'task-'"
+      ],
+      "passes": false
+    },
+    {
+      "id": "opt-c-model-002",
+      "category": "option-c-models",
+      "description": "Task model ID has 8 hex chars after prefix",
+      "steps": [
+        "python -c \"from orchestrator.models import Task; t = Task(description='Test'); print(len(t.id.split('-')[1]))\"",
+        "Verify 8 characters"
+      ],
+      "passes": false
+    },
+    {
+      "id": "opt-c-model-003",
+      "category": "option-c-models",
+      "description": "Task default status is AVAILABLE",
+      "steps": [
+        "python -c \"from orchestrator.models import Task, TaskStatus; t = Task(description='Test'); print(t.status == TaskStatus.AVAILABLE)\"",
+        "Verify True"
+      ],
+      "passes": false
+    },
+    {
+      "id": "opt-c-model-004",
+      "category": "option-c-models",
+      "description": "Task default priority is 5",
+      "steps": [
+        "python -c \"from orchestrator.models import Task; t = Task(description='Test'); print(t.priority)\"",
+        "Verify 5"
+      ],
+      "passes": false
+    },
+    {
+      "id": "opt-c-model-005",
+      "category": "option-c-models",
+      "description": "Task priority validates range 1-10",
+      "steps": [
+        "python -c \"from orchestrator.models import Task; Task(description='Test', priority=0)\"",
+        "Verify ValidationError for priority < 1",
+        "Same test for priority > 10"
+      ],
+      "passes": false
+    },
+    {
+      "id": "opt-c-model-006",
+      "category": "option-c-models",
+      "description": "Task.claim() sets status to CLAIMED",
+      "steps": [
+        "python test: t.claim('agent-1'); assert t.status == TaskStatus.CLAIMED"
+      ],
+      "passes": false
+    },
+    {
+      "id": "opt-c-model-007",
+      "category": "option-c-models",
+      "description": "Task.claim() sets claimed_by",
+      "steps": [
+        "python test: t.claim('agent-1'); assert t.claimed_by == 'agent-1'"
+      ],
+      "passes": false
+    },
+    {
+      "id": "opt-c-model-008",
+      "category": "option-c-models",
+      "description": "Task.claim() sets claimed_at timestamp",
+      "steps": [
+        "python test: t.claim('agent-1'); assert t.claimed_at is not None"
+      ],
+      "passes": false
+    },
+    {
+      "id": "opt-c-model-009",
+      "category": "option-c-models",
+      "description": "Task.claim() increments attempts",
+      "steps": [
+        "python test: t.claim('agent-1'); assert t.attempts == 1"
+      ],
+      "passes": false
+    },
+    {
+      "id": "opt-c-model-010",
+      "category": "option-c-models",
+      "description": "Task.start() sets status to IN_PROGRESS",
+      "steps": [
+        "python test: t.start(); assert t.status == TaskStatus.IN_PROGRESS"
+      ],
+      "passes": false
+    },
+    {
+      "id": "opt-c-model-011",
+      "category": "option-c-models",
+      "description": "Task.start() sets started_at timestamp",
+      "steps": [
+        "python test: t.start(); assert t.started_at is not None"
+      ],
+      "passes": false
+    },
+    {
+      "id": "opt-c-model-012",
+      "category": "option-c-models",
+      "description": "Task.complete() sets status to DONE",
+      "steps": [
+        "python test: t.complete(result); assert t.status == TaskStatus.DONE"
+      ],
+      "passes": false
+    },
+    {
+      "id": "opt-c-model-013",
+      "category": "option-c-models",
+      "description": "Task.complete() sets completed_at timestamp",
+      "steps": [
+        "python test: t.complete(result); assert t.completed_at is not None"
+      ],
+      "passes": false
+    },
+    {
+      "id": "opt-c-model-014",
+      "category": "option-c-models",
+      "description": "Task.complete() stores result",
+      "steps": [
+        "python test: t.complete(result); assert t.result == result"
+      ],
+      "passes": false
+    },
+    {
+      "id": "opt-c-model-015",
+      "category": "option-c-models",
+      "description": "Task.fail() sets status to FAILED",
+      "steps": [
+        "python test: t.fail('error'); assert t.status == TaskStatus.FAILED"
+      ],
+      "passes": false
+    },
+    {
+      "id": "opt-c-model-016",
+      "category": "option-c-models",
+      "description": "Task.fail() creates TaskResult with error",
+      "steps": [
+        "python test: t.fail('error msg'); assert t.result.error == 'error msg'"
+      ],
+      "passes": false
+    },
+    {
+      "id": "opt-c-model-017",
+      "category": "option-c-models",
+      "description": "Task.reset() sets status back to AVAILABLE",
+      "steps": [
+        "python test: t.claim('a'); t.reset(); assert t.status == TaskStatus.AVAILABLE"
+      ],
+      "passes": false
+    },
+    {
+      "id": "opt-c-model-018",
+      "category": "option-c-models",
+      "description": "Task.reset() only works if attempts < max_attempts",
+      "steps": [
+        "python test: set attempts = max_attempts, reset() should not change status"
+      ],
+      "passes": false
+    },
+    {
+      "id": "opt-c-model-019",
+      "category": "option-c-models",
+      "description": "Task.can_start() returns True when no dependencies",
+      "steps": [
+        "python test: t = Task(desc='test'); t.can_start(set()) returns True"
+      ],
+      "passes": false
+    },
+    {
+      "id": "opt-c-model-020",
+      "category": "option-c-models",
+      "description": "Task.can_start() returns False when dependencies unmet",
+      "steps": [
+        "python test: t = Task(desc='test', dependencies=['task-1']); t.can_start(set()) returns False"
+      ],
+      "passes": false
+    },
+    {
+      "id": "opt-c-model-021",
+      "category": "option-c-models",
+      "description": "Task.can_start() returns True when dependencies met",
+      "steps": [
+        "python test: t.can_start({'task-1'}) returns True"
+      ],
+      "passes": false
+    },
+    {
+      "id": "opt-c-model-022",
+      "category": "option-c-models",
+      "description": "TaskStatus enum has all required values",
+      "steps": [
+        "Verify TaskStatus has: PENDING, AVAILABLE, CLAIMED, IN_PROGRESS, DONE, FAILED, BLOCKED"
+      ],
+      "passes": false
+    },
+    {
+      "id": "opt-c-model-023",
+      "category": "option-c-models",
+      "description": "AgentRole enum has LEADER, WORKER, SPECIALIST",
+      "steps": [
+        "Verify AgentRole has all three values"
+      ],
+      "passes": false
+    },
+    {
+      "id": "opt-c-model-024",
+      "category": "option-c-models",
+      "description": "TaskContext has files, hints, parent_task, tags, metadata",
+      "steps": [
+        "Verify TaskContext model has all expected fields"
+      ],
+      "passes": false
+    },
+    {
+      "id": "opt-c-model-025",
+      "category": "option-c-models",
+      "description": "TaskResult has output, files_modified, files_created, files_deleted, error, subtasks_created, discoveries",
+      "steps": [
+        "Verify TaskResult model has all expected fields"
+      ],
+      "passes": false
+    },
+    {
+      "id": "opt-c-model-026",
+      "category": "option-c-models",
+      "description": "Agent model has all required fields",
+      "steps": [
+        "Verify Agent model has: id, role, is_active, current_task, pid, last_heartbeat, metrics, working_directory, model, max_concurrent_tasks"
+      ],
+      "passes": false
+    },
+    {
+      "id": "opt-c-model-027",
+      "category": "option-c-models",
+      "description": "AgentMetrics tracks completed, failed, time, discoveries",
+      "steps": [
+        "Verify AgentMetrics has: tasks_completed, tasks_failed, total_time_working, avg_task_time, discoveries_made"
+      ],
+      "passes": false
+    },
+    {
+      "id": "opt-c-model-028",
+      "category": "option-c-models",
+      "description": "Discovery model has all required fields",
+      "steps": [
+        "Verify Discovery model has: id, agent_id, content, tags, related_task, created_at"
+      ],
+      "passes": false
+    },
+    {
+      "id": "opt-c-model-029",
+      "category": "option-c-models",
+      "description": "CoordinationState.get_available_tasks() filters correctly",
+      "steps": [
+        "Create state with mixed tasks, verify only AVAILABLE with met deps returned"
+      ],
+      "passes": false
+    },
+    {
+      "id": "opt-c-model-030",
+      "category": "option-c-models",
+      "description": "CoordinationState.get_progress() returns correct stats",
+      "steps": [
+        "Create state with tasks, verify by_status counts and percent_complete"
+      ],
+      "passes": false
+    },
+    {
+      "id": "opt-c-agent-001",
+      "category": "option-c-agent",
+      "description": "ClaudeCodeAgent initializes with correct defaults",
+      "steps": [
+        "from orchestrator.agent import ClaudeCodeAgent, AgentRole",
+        "agent = ClaudeCodeAgent(agent_id='test', role=AgentRole.WORKER)",
+        "assert agent.agent_id == 'test'",
+        "assert agent.role == AgentRole.WORKER"
+      ],
+      "passes": false
+    },
+    {
+      "id": "opt-c-agent-002",
+      "category": "option-c-agent",
+      "description": "ClaudeCodeAgent.is_running is False initially",
+      "steps": [
+        "agent = ClaudeCodeAgent('test')",
+        "assert agent.is_running == False"
+      ],
+      "passes": false
+    },
+    {
+      "id": "opt-c-agent-003",
+      "category": "option-c-agent",
+      "description": "ClaudeCodeAgent.pid is None initially",
+      "steps": [
+        "agent = ClaudeCodeAgent('test')",
+        "assert agent.pid is None"
+      ],
+      "passes": false
+    },
+    {
+      "id": "opt-c-agent-004",
+      "category": "option-c-agent",
+      "description": "ClaudeCodeAgent.to_model() returns Agent instance",
+      "steps": [
+        "agent = ClaudeCodeAgent('test')",
+        "model = agent.to_model()",
+        "assert isinstance(model, Agent)"
+      ],
+      "passes": false
+    },
+    {
+      "id": "opt-c-agent-005",
+      "category": "option-c-agent",
+      "description": "ClaudeCodeAgent uses --print flag for non-interactive",
+      "steps": [
+        "Examine agent.py start() method",
+        "Verify '--print' is in command args"
+      ],
+      "passes": false
+    },
+    {
+      "id": "opt-c-agent-006",
+      "category": "option-c-agent",
+      "description": "ClaudeCodeAgent uses --output-format stream-json",
+      "steps": [
+        "Examine agent.py start() method",
+        "Verify '--output-format', 'stream-json' in args"
+      ],
+      "passes": false
+    },
+    {
+      "id": "opt-c-agent-007",
+      "category": "option-c-agent",
+      "description": "ClaudeCodeAgent sets CLAUDE_CODE_AGENT_ID env var",
+      "steps": [
+        "Examine agent.py start() method",
+        "Verify env dict includes CLAUDE_CODE_AGENT_ID"
+      ],
+      "passes": false
+    },
+    {
+      "id": "opt-c-agent-008",
+      "category": "option-c-agent",
+      "description": "ClaudeCodeAgent uses asyncio.create_subprocess_exec (not shell)",
+      "steps": [
+        "Examine agent.py start() method",
+        "Verify asyncio.create_subprocess_exec is used (security)"
+      ],
+      "passes": false
+    },
+    {
+      "id": "opt-c-agent-009",
+      "category": "option-c-agent",
+      "description": "ClaudeCodeAgent.stop() gracefully terminates process",
+      "steps": [
+        "Examine agent.py stop() method",
+        "Verify stdin.close(), wait_for(), terminate(), kill() sequence"
+      ],
+      "passes": false
+    },
+    {
+      "id": "opt-c-agent-010",
+      "category": "option-c-agent",
+      "description": "ClaudeCodeAgent.send_prompt() raises if not running",
+      "steps": [
+        "agent = ClaudeCodeAgent('test')",
+        "Verify send_prompt() raises RuntimeError"
+      ],
+      "passes": false
+    },
+    {
+      "id": "opt-c-agent-011",
+      "category": "option-c-agent",
+      "description": "ClaudeCodeAgent._build_task_prompt() includes task ID",
+      "steps": [
+        "Examine agent.py _build_task_prompt() method",
+        "Verify task.id is included in prompt"
+      ],
+      "passes": false
+    },
+    {
+      "id": "opt-c-agent-012",
+      "category": "option-c-agent",
+      "description": "ClaudeCodeAgent._build_task_prompt() includes description",
+      "steps": [
+        "Examine agent.py _build_task_prompt() method",
+        "Verify task.description is included"
+      ],
+      "passes": false
+    },
+    {
+      "id": "opt-c-agent-013",
+      "category": "option-c-agent",
+      "description": "ClaudeCodeAgent._build_task_prompt() includes context files",
+      "steps": [
+        "Examine agent.py _build_task_prompt() method",
+        "Verify task.context.files is included if present"
+      ],
+      "passes": false
+    },
+    {
+      "id": "opt-c-agent-014",
+      "category": "option-c-agent",
+      "description": "ClaudeCodeAgent._build_task_prompt() includes hints",
+      "steps": [
+        "Examine agent.py _build_task_prompt() method",
+        "Verify task.context.hints is included if present"
+      ],
+      "passes": false
+    },
+    {
+      "id": "opt-c-agent-015",
+      "category": "option-c-agent",
+      "description": "ClaudeCodeAgent._parse_task_response() extracts files_modified",
+      "steps": [
+        "Examine agent.py _parse_task_response() method",
+        "Verify 'modified' section parsing"
+      ],
+      "passes": false
+    },
+    {
+      "id": "opt-c-agent-016",
+      "category": "option-c-agent",
+      "description": "ClaudeCodeAgent._parse_task_response() extracts files_created",
+      "steps": [
+        "Examine agent.py _parse_task_response() method",
+        "Verify 'created' section parsing"
+      ],
+      "passes": false
+    },
+    {
+      "id": "opt-c-agent-017",
+      "category": "option-c-agent",
+      "description": "ClaudeCodeAgent._parse_task_response() extracts discoveries",
+      "steps": [
+        "Examine agent.py _parse_task_response() method",
+        "Verify 'discover' section parsing"
+      ],
+      "passes": false
+    },
+    {
+      "id": "opt-c-agent-018",
+      "category": "option-c-agent",
+      "description": "ClaudeCodeAgent._read_response() handles JSON stream format",
+      "steps": [
+        "Examine agent.py _read_response() method",
+        "Verify JSON parsing with type=='assistant' handling"
+      ],
+      "passes": false
+    },
+    {
+      "id": "opt-c-agent-019",
+      "category": "option-c-agent",
+      "description": "ClaudeCodeAgent._read_response() handles type=='result' as end",
+      "steps": [
+        "Examine agent.py _read_response() method",
+        "Verify break on type=='result'"
+      ],
+      "passes": false
+    },
+    {
+      "id": "opt-c-agent-020",
+      "category": "option-c-agent",
+      "description": "AgentPool initializes with correct defaults",
+      "steps": [
+        "pool = AgentPool()",
+        "assert pool.max_workers == 3"
+      ],
+      "passes": false
+    },
+    {
+      "id": "opt-c-agent-021",
+      "category": "option-c-agent",
+      "description": "AgentPool.start_leader() creates leader agent",
+      "steps": [
+        "Examine agent.py AgentPool.start_leader()",
+        "Verify leader has role LEADER"
+      ],
+      "passes": false
+    },
+    {
+      "id": "opt-c-agent-022",
+      "category": "option-c-agent",
+      "description": "AgentPool.start_worker() respects max_workers",
+      "steps": [
+        "Examine agent.py AgentPool.start_worker()",
+        "Verify RuntimeError when max_workers reached"
+      ],
+      "passes": false
+    },
+    {
+      "id": "opt-c-agent-023",
+      "category": "option-c-agent",
+      "description": "AgentPool.stop_all() stops all agents",
+      "steps": [
+        "Examine agent.py AgentPool.stop_all()",
+        "Verify asyncio.gather on all agent stop() calls"
+      ],
+      "passes": false
+    },
+    {
+      "id": "opt-c-agent-024",
+      "category": "option-c-agent",
+      "description": "AgentPool.get_idle_worker() returns agent with no current_task",
+      "steps": [
+        "Examine agent.py AgentPool.get_idle_worker()",
+        "Verify filters by is_running and _current_task is None"
+      ],
+      "passes": false
+    },
+    {
+      "id": "opt-c-agent-025",
+      "category": "option-c-agent",
+      "description": "AgentPool.get_all_agents() includes leader",
+      "steps": [
+        "Examine agent.py AgentPool.get_all_agents()",
+        "Verify leader is inserted at position 0"
+      ],
+      "passes": false
+    },
+    {
+      "id": "opt-c-orch-001",
+      "category": "option-c-orchestrator",
+      "description": "Orchestrator initializes with correct defaults",
+      "steps": [
+        "from orchestrator import Orchestrator",
+        "o = Orchestrator()",
+        "assert o.max_workers == 3"
+      ],
+      "passes": false
+    },
+    {
+      "id": "opt-c-orch-002",
+      "category": "option-c-orchestrator",
+      "description": "Orchestrator.initialize() sets goal",
+      "steps": [
+        "o = Orchestrator()",
+        "await o.initialize('Test goal')",
+        "assert o.state.goal == 'Test goal'"
+      ],
+      "passes": false
+    },
+    {
+      "id": "opt-c-orch-003",
+      "category": "option-c-orchestrator",
+      "description": "Orchestrator.initialize() sets master_plan",
+      "steps": [
+        "o = Orchestrator()",
+        "await o.initialize('Goal', 'Plan here')",
+        "assert o.state.master_plan == 'Plan here'"
+      ],
+      "passes": false
+    },
+    {
+      "id": "opt-c-orch-004",
+      "category": "option-c-orchestrator",
+      "description": "Orchestrator.add_task() creates Task with correct fields",
+      "steps": [
+        "task = o.add_task('Description', priority=2)",
+        "assert task.description == 'Description'",
+        "assert task.priority == 2"
+      ],
+      "passes": false
+    },
+    {
+      "id": "opt-c-orch-005",
+      "category": "option-c-orchestrator",
+      "description": "Orchestrator.add_task() adds to state.tasks",
+      "steps": [
+        "o.add_task('Test')",
+        "assert len(o.state.tasks) == 1"
+      ],
+      "passes": false
+    },
+    {
+      "id": "opt-c-orch-006",
+      "category": "option-c-orchestrator",
+      "description": "Orchestrator.add_tasks_batch() adds multiple tasks",
+      "steps": [
+        "tasks = o.add_tasks_batch([{'description': 'A'}, {'description': 'B'}])",
+        "assert len(tasks) == 2"
+      ],
+      "passes": false
+    },
+    {
+      "id": "opt-c-orch-007",
+      "category": "option-c-orchestrator",
+      "description": "Orchestrator.claim_task() returns highest priority",
+      "steps": [
+        "o.add_task('Low', priority=5)",
+        "o.add_task('High', priority=1)",
+        "task = await o.claim_task('agent')",
+        "assert task.priority == 1"
+      ],
+      "passes": false
+    },
+    {
+      "id": "opt-c-orch-008",
+      "category": "option-c-orchestrator",
+      "description": "Orchestrator.claim_task() is thread-safe",
+      "steps": [
+        "Examine orchestrator.py claim_task()",
+        "Verify async with self._task_lock"
+      ],
+      "passes": false
+    },
+    {
+      "id": "opt-c-orch-009",
+      "category": "option-c-orchestrator",
+      "description": "Orchestrator.complete_task() marks task done",
+      "steps": [
+        "await o.complete_task(task_id, result)",
+        "Verify task.status == TaskStatus.DONE"
+      ],
+      "passes": false
+    },
+    {
+      "id": "opt-c-orch-010",
+      "category": "option-c-orchestrator",
+      "description": "Orchestrator.complete_task() stores discoveries",
+      "steps": [
+        "Examine orchestrator.py complete_task()",
+        "Verify discoveries added to state.discoveries"
+      ],
+      "passes": false
+    },
+    {
+      "id": "opt-c-orch-011",
+      "category": "option-c-orchestrator",
+      "description": "Orchestrator.fail_task() marks task failed",
+      "steps": [
+        "await o.fail_task(task_id, 'error')",
+        "Verify task.status == TaskStatus.FAILED"
+      ],
+      "passes": false
+    },
+    {
+      "id": "opt-c-orch-012",
+      "category": "option-c-orchestrator",
+      "description": "Orchestrator.start() starts all workers",
+      "steps": [
+        "Examine orchestrator.py start()",
+        "Verify loop starts max_workers workers"
+      ],
+      "passes": false
+    },
+    {
+      "id": "opt-c-orch-013",
+      "category": "option-c-orchestrator",
+      "description": "Orchestrator.stop() stops all agents",
+      "steps": [
+        "Examine orchestrator.py stop()",
+        "Verify _pool.stop_all() is called"
+      ],
+      "passes": false
+    },
+    {
+      "id": "opt-c-orch-014",
+      "category": "option-c-orchestrator",
+      "description": "Orchestrator.run_with_leader_planning() requires goal",
+      "steps": [
+        "Examine orchestrator.py run_with_leader_planning()",
+        "Verify ValueError if no goal set"
+      ],
+      "passes": false
+    },
+    {
+      "id": "opt-c-orch-015",
+      "category": "option-c-orchestrator",
+      "description": "Orchestrator.run_with_predefined_tasks() requires tasks",
+      "steps": [
+        "Examine orchestrator.py run_with_predefined_tasks()",
+        "Verify ValueError if no tasks defined"
+      ],
+      "passes": false
+    },
+    {
+      "id": "opt-c-orch-016",
+      "category": "option-c-orchestrator",
+      "description": "Orchestrator._build_planning_prompt() includes goal",
+      "steps": [
+        "Examine orchestrator.py _build_planning_prompt()",
+        "Verify state.goal is in prompt"
+      ],
+      "passes": false
+    },
+    {
+      "id": "opt-c-orch-017",
+      "category": "option-c-orchestrator",
+      "description": "Orchestrator._build_planning_prompt() requests JSON format",
+      "steps": [
+        "Examine orchestrator.py _build_planning_prompt()",
+        "Verify JSON array format is specified"
+      ],
+      "passes": false
+    },
+    {
+      "id": "opt-c-orch-018",
+      "category": "option-c-orchestrator",
+      "description": "Orchestrator._parse_plan_response() extracts JSON array",
+      "steps": [
+        "Examine orchestrator.py _parse_plan_response()",
+        "Verify JSON extraction between [ and ]"
+      ],
+      "passes": false
+    },
+    {
+      "id": "opt-c-orch-019",
+      "category": "option-c-orchestrator",
+      "description": "Orchestrator._parse_plan_response() fallback on JSON error",
+      "steps": [
+        "Examine orchestrator.py _parse_plan_response()",
+        "Verify fallback creates single task with goal"
+      ],
+      "passes": false
+    },
+    {
+      "id": "opt-c-orch-020",
+      "category": "option-c-orchestrator",
+      "description": "Orchestrator._run_task_loop() assigns to idle workers",
+      "steps": [
+        "Examine orchestrator.py _run_task_loop()",
+        "Verify workers with no current_task get new tasks"
+      ],
+      "passes": false
+    },
+    {
+      "id": "opt-c-orch-021",
+      "category": "option-c-orchestrator",
+      "description": "Orchestrator._run_task_loop() exits when all done",
+      "steps": [
+        "Examine orchestrator.py _run_task_loop()",
+        "Verify break when no pending tasks and no active_tasks"
+      ],
+      "passes": false
+    },
+    {
+      "id": "opt-c-orch-022",
+      "category": "option-c-orchestrator",
+      "description": "Orchestrator.save_state() writes JSON to file",
+      "steps": [
+        "o.save_state('test.json')",
+        "Verify file exists and is valid JSON"
+      ],
+      "passes": false
+    },
+    {
+      "id": "opt-c-orch-023",
+      "category": "option-c-orchestrator",
+      "description": "Orchestrator.load_state() reads JSON from file",
+      "steps": [
+        "o.load_state('test.json')",
+        "Verify state is loaded correctly"
+      ],
+      "passes": false
+    },
+    {
+      "id": "opt-c-orch-024",
+      "category": "option-c-orchestrator",
+      "description": "Orchestrator.get_status() returns dict with all info",
+      "steps": [
+        "status = o.get_status()",
+        "Verify has: goal, progress, agents, discoveries, last_activity"
+      ],
+      "passes": false
+    },
+    {
+      "id": "opt-c-orch-025",
+      "category": "option-c-orchestrator",
+      "description": "Orchestrator uses asyncio.Lock for task claiming",
+      "steps": [
+        "Examine orchestrator.py __init__()",
+        "Verify self._task_lock = asyncio.Lock()"
+      ],
+      "passes": false
+    },
+    {
+      "id": "opt-c-cli-001",
+      "category": "option-c-cli",
+      "description": "orchestrate --help shows all commands",
+      "steps": [
+        "cd claude-multi-agent/option-c-orchestrator",
+        "source .venv/bin/activate",
+        "orchestrate --help",
+        "Verify commands: run, init, from-config, create-task, status, example"
+      ],
+      "passes": false
+    },
+    {
+      "id": "opt-c-cli-002",
+      "category": "option-c-cli",
+      "description": "orchestrate run requires goal argument",
+      "steps": [
+        "orchestrate run",
+        "Verify error about missing goal argument"
+      ],
+      "passes": false
+    },
+    {
+      "id": "opt-c-cli-003",
+      "category": "option-c-cli",
+      "description": "orchestrate run accepts --workers option",
+      "steps": [
+        "Examine cli.py run command",
+        "Verify --workers/-w option exists with default 3"
+      ],
+      "passes": false
+    },
+    {
+      "id": "opt-c-cli-004",
+      "category": "option-c-cli",
+      "description": "orchestrate run accepts --model option",
+      "steps": [
+        "Examine cli.py run command",
+        "Verify --model/-m option exists"
+      ],
+      "passes": false
+    },
+    {
+      "id": "opt-c-cli-005",
+      "category": "option-c-cli",
+      "description": "orchestrate run accepts --timeout option",
+      "steps": [
+        "Examine cli.py run command",
+        "Verify --timeout/-t option with default 600"
+      ],
+      "passes": false
+    },
+    {
+      "id": "opt-c-cli-006",
+      "category": "option-c-cli",
+      "description": "orchestrate run accepts --cwd option",
+      "steps": [
+        "Examine cli.py run command",
+        "Verify --cwd/-C option with default '.'"
+      ],
+      "passes": false
+    },
+    {
+      "id": "opt-c-cli-007",
+      "category": "option-c-cli",
+      "description": "orchestrate run accepts --plan/--no-plan flag",
+      "steps": [
+        "Examine cli.py run command",
+        "Verify --plan/--no-plan option with default True"
+      ],
+      "passes": false
+    },
+    {
+      "id": "opt-c-cli-008",
+      "category": "option-c-cli",
+      "description": "orchestrate run accepts --tasks option for JSON file",
+      "steps": [
+        "Examine cli.py run command",
+        "Verify --tasks/-f option exists"
+      ],
+      "passes": false
+    },
+    {
+      "id": "opt-c-cli-009",
+      "category": "option-c-cli",
+      "description": "orchestrate run accepts --output option",
+      "steps": [
+        "Examine cli.py run command",
+        "Verify --output/-o option exists"
+      ],
+      "passes": false
+    },
+    {
+      "id": "opt-c-cli-010",
+      "category": "option-c-cli",
+      "description": "orchestrate run accepts --quiet option",
+      "steps": [
+        "Examine cli.py run command",
+        "Verify --quiet/-q option exists"
+      ],
+      "passes": false
+    },
+    {
+      "id": "opt-c-cli-011",
+      "category": "option-c-cli",
+      "description": "orchestrate init creates config JSON file",
+      "steps": [
+        "orchestrate init 'Test goal'",
+        "Verify orchestration.json is created"
+      ],
+      "passes": false
+    },
+    {
+      "id": "opt-c-cli-012",
+      "category": "option-c-cli",
+      "description": "orchestrate init accepts --output option",
+      "steps": [
+        "orchestrate init 'Goal' --output custom.json",
+        "Verify custom.json is created"
+      ],
+      "passes": false
+    },
+    {
+      "id": "opt-c-cli-013",
+      "category": "option-c-cli",
+      "description": "orchestrate from-config reads config file",
+      "steps": [
+        "Create config.json with goal",
+        "orchestrate from-config config.json",
+        "Verify goal is used"
+      ],
+      "passes": false
+    },
+    {
+      "id": "opt-c-cli-014",
+      "category": "option-c-cli",
+      "description": "orchestrate create-task adds task to config",
+      "steps": [
+        "orchestrate init 'Goal'",
+        "orchestrate create-task 'New task'",
+        "Verify task is in orchestration.json"
+      ],
+      "passes": false
+    },
+    {
+      "id": "opt-c-cli-015",
+      "category": "option-c-cli",
+      "description": "orchestrate create-task accepts --priority option",
+      "steps": [
+        "Examine cli.py create_task command",
+        "Verify --priority/-p option exists"
+      ],
+      "passes": false
+    },
+    {
+      "id": "opt-c-cli-016",
+      "category": "option-c-cli",
+      "description": "orchestrate create-task accepts --depends option",
+      "steps": [
+        "Examine cli.py create_task command",
+        "Verify --depends/-d option exists"
+      ],
+      "passes": false
+    },
+    {
+      "id": "opt-c-cli-017",
+      "category": "option-c-cli",
+      "description": "orchestrate create-task accepts --files option",
+      "steps": [
+        "Examine cli.py create_task command",
+        "Verify --files/-f option exists"
+      ],
+      "passes": false
+    },
+    {
+      "id": "opt-c-cli-018",
+      "category": "option-c-cli",
+      "description": "orchestrate create-task accepts --hints option",
+      "steps": [
+        "Examine cli.py create_task command",
+        "Verify --hints option exists"
+      ],
+      "passes": false
+    },
+    {
+      "id": "opt-c-cli-019",
+      "category": "option-c-cli",
+      "description": "orchestrate status shows config info",
+      "steps": [
+        "orchestrate init 'Goal'",
+        "orchestrate status",
+        "Verify shows goal, workers, model, tasks count"
+      ],
+      "passes": false
+    },
+    {
+      "id": "opt-c-cli-020",
+      "category": "option-c-cli",
+      "description": "orchestrate example shows example config",
+      "steps": [
+        "orchestrate example",
+        "Verify shows JSON example with goal, tasks, etc."
+      ],
+      "passes": false
+    },
+    {
+      "id": "opt-c-cli-021",
+      "category": "option-c-cli",
+      "description": "CLI uses Rich for formatted output",
+      "steps": [
+        "Examine cli.py imports",
+        "Verify rich.console, rich.panel, rich.table are used"
+      ],
+      "passes": false
+    },
+    {
+      "id": "opt-c-cli-022",
+      "category": "option-c-cli",
+      "description": "CLI handles KeyboardInterrupt gracefully",
+      "steps": [
+        "Examine cli.py run command",
+        "Verify except KeyboardInterrupt calls orchestrator.stop()"
+      ],
+      "passes": false
+    },
+    {
+      "id": "opt-c-cli-023",
+      "category": "option-c-cli",
+      "description": "orchestrate is entry point in pyproject.toml",
+      "steps": [
+        "Read pyproject.toml",
+        "Verify [project.scripts] has orchestrate entry"
+      ],
+      "passes": false
+    },
+    {
+      "id": "opt-c-cli-024",
+      "category": "option-c-cli",
+      "description": "CLI errors on --no-plan without --tasks",
+      "steps": [
+        "Examine cli.py run command",
+        "Verify error message when --no-plan without tasks_file"
+      ],
+      "passes": false
+    },
+    {
+      "id": "opt-c-cli-025",
+      "category": "option-c-cli",
+      "description": "orchestrate status accepts --config option",
+      "steps": [
+        "Examine cli.py status command",
+        "Verify --config/-c option exists"
+      ],
+      "passes": false
+    },
+    {
+      "id": "int-001",
+      "category": "integration",
+      "description": "Option A full workflow: init -> add-task -> claim -> complete",
+      "steps": [
+        "cd option-a-file-based",
+        "python coordination.py leader init 'Integration test'",
+        "python coordination.py leader add-task 'Task 1'",
+        "Get TASK_ID",
+        "python coordination.py worker claim terminal-1",
+        "python coordination.py worker complete terminal-1 $TASK_ID 'Done'",
+        "python coordination.py leader status",
+        "Verify 1 task done, 100% progress"
+      ],
+      "passes": false
+    },
+    {
+      "id": "int-002",
+      "category": "integration",
+      "description": "Option A dependency chain works correctly",
+      "steps": [
+        "cd option-a-file-based",
+        "python coordination.py leader init 'Chain test'",
+        "python coordination.py leader add-task 'Task 1'",
+        "Get TASK1_ID",
+        "python coordination.py leader add-task 'Task 2' --depends $TASK1_ID",
+        "python coordination.py worker claim terminal-1",
+        "Verify Task 1 claimed (not Task 2)",
+        "python coordination.py worker complete terminal-1 $TASK1_ID 'Done'",
+        "python coordination.py worker claim terminal-1",
+        "Verify Task 2 now claimable"
+      ],
+      "passes": false
+    },
+    {
+      "id": "int-003",
+      "category": "integration",
+      "description": "Option B MCP server starts without errors",
+      "steps": [
+        "cd option-b-mcp-broker",
+        "timeout 5 node dist/index.js || true",
+        "Verify no crash, server message appears"
+      ],
+      "passes": false
+    },
+    {
+      "id": "int-004",
+      "category": "integration",
+      "description": "Option B state persists across restarts",
+      "steps": [
+        "Start MCP server",
+        "Create task via tool",
+        "Stop server",
+        "Start server again",
+        "Verify task still exists in state"
+      ],
+      "passes": false
+    },
+    {
+      "id": "int-005",
+      "category": "integration",
+      "description": "Option C init -> from-config workflow",
+      "steps": [
+        "cd option-c-orchestrator",
+        "source .venv/bin/activate",
+        "orchestrate init 'Config test'",
+        "orchestrate create-task 'Task 1' -p 1",
+        "Verify orchestration.json has goal and 1 task"
+      ],
+      "passes": false
+    },
+    {
+      "id": "int-006",
+      "category": "integration",
+      "description": "Option C Orchestrator importable from package",
+      "steps": [
+        "cd option-c-orchestrator",
+        "source .venv/bin/activate",
+        "python -c 'from orchestrator import Orchestrator; print(\"OK\")'",
+        "Verify no errors, prints OK"
+      ],
+      "passes": false
+    },
+    {
+      "id": "int-007",
+      "category": "integration",
+      "description": "Option C models importable from package",
+      "steps": [
+        "cd option-c-orchestrator",
+        "source .venv/bin/activate",
+        "python -c 'from orchestrator.models import Task, TaskStatus; print(\"OK\")'",
+        "Verify no errors"
+      ],
+      "passes": false
+    },
+    {
+      "id": "int-008",
+      "category": "integration",
+      "description": "Option C agent importable from package",
+      "steps": [
+        "cd option-c-orchestrator",
+        "source .venv/bin/activate",
+        "python -c 'from orchestrator.agent import ClaudeCodeAgent; print(\"OK\")'",
+        "Verify no errors"
+      ],
+      "passes": false
+    },
+    {
+      "id": "int-009",
+      "category": "integration",
+      "description": "shared/schemas/task.schema.json is valid JSON Schema",
+      "steps": [
+        "Read task.schema.json",
+        "Verify valid JSON",
+        "Verify has $schema, type, properties"
+      ],
+      "passes": false
+    },
+    {
+      "id": "int-010",
+      "category": "integration",
+      "description": "All three options have consistent task structure",
+      "steps": [
+        "Compare Task models across options",
+        "Verify: id, description, status, priority, dependencies, claimed_by, result fields exist in all"
+      ],
+      "passes": false
+    }
+  ]
+}
