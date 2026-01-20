@@ -5,7 +5,7 @@
 # INSTRUCTIONS: Read this file at the START of each session to orient yourself.
 #
 # File Locations:
-#   - feature_list.json: 210 features to implement/verify
+#   - feature_list.json: 200 advanced features to implement (v2.0.0)
 #   - CODING_AGENT.md: Detailed session instructions
 #   - init.sh: Environment setup script
 #   - CLAUDE.md: Project context
@@ -14,44 +14,65 @@
 
 ## Current State
 
-Total Features: 210
-- Option A (File-Based): 50/50 passing ✅
-- Option B (MCP Broker): 45/45 passing ✅
-- Option C (Orchestrator): 105/105 passing ✅
-- Integration: 10/10 passing ✅
+**VERSION 2.0.0 - ADVANCED FEATURES**
 
-Overall Progress: 210/210 (100%) 🎉 COMPLETE!
+Total Features: 200 (new advanced feature set)
+- Option A Advanced: 0/10
+- Option A Recovery: 0/5
+- Option A Metrics: 0/5
+- Option B Advanced: 0/10
+- Option B Subscriptions: 0/5
+- Option B Security: 0/5
+- Option C Advanced: 0/10
+- Option C Planning: 0/10
+- Option C Monitoring: 0/5
+- Cross-Option: 0/10
+- Security: 0/10
+- Performance: 0/10
+- Reliability: 0/10
+- Testing: 0/20
+- Documentation: 0/15
+- Extensions: 0/10
+- AI Features: 0/10
+- Scalability: 0/10
+
+Overall Progress: 0/200 (0%)
 
 ## Priority Queue
 
-ALL FEATURES COMPLETE! ✅
+Recommended implementation order:
 
-1. [x] Option A Init (10/10) - DONE
-2. [x] Option A Leader (15/15) - DONE
-3. [x] Option A Worker (15/15) - DONE
-4. [x] Option A Locking (10/10) - DONE
-5. [x] Option B Build (10/10) - DONE
-6. [x] Option B Tools (25/25) - DONE
-7. [x] Option B Resources (10/10) - DONE
-8. [x] Option C Models (30/30) - DONE
-9. [x] Option C Agent (25/25) - DONE
-10. [x] Option C Orchestrator (25/25) - DONE
-11. [x] Option C CLI (25/25) - DONE
-12. [x] Integration (10/10) - DONE
+1. [ ] Option A Advanced (10) - Task priority, cancellation, reassignment
+2. [ ] Option A Recovery (5) - Checkpoint/restore, crash detection
+3. [ ] Option A Metrics (5) - Prometheus metrics, dashboards
+4. [ ] Option B Advanced (10) - WebSocket, SQLite, rate limiting
+5. [ ] Option B Subscriptions (5) - Real-time updates, webhooks
+6. [ ] Option B Security (5) - API keys, JWT, mTLS
+7. [ ] Option C Advanced (10) - Adaptive scaling, load balancing
+8. [ ] Option C Planning (10) - DAG execution, constraint solving
+9. [ ] Option C Monitoring (5) - Health checks, anomaly detection
+10. [ ] Cross-Option (10) - Universal adapter, migration tools
+11. [ ] Security (10) - Encryption, RBAC, audit logging
+12. [ ] Performance (10) - Caching, connection pooling, lazy loading
+13. [ ] Reliability (10) - Circuit breakers, retries, failover
+14. [ ] Testing (20) - Unit, integration, load, chaos, fuzzing
+15. [ ] Documentation (15) - Architecture docs, tutorials, examples
+16. [ ] Extensions (10) - VS Code, Slack, GitHub integrations
+17. [ ] AI Features (10) - Intelligent prioritization, decomposition
+18. [ ] Scalability (10) - Multi-node, Kubernetes, cloud-native
 
-## Known Issues
+## Known Issues (from v1.0.0)
+
+These issues are now tracked as features in v2.0.0:
 
 1. Option C agent.py uses --print which exits after one prompt
-   - Impact: Workers can't execute multiple tasks
-   - Fix needed: Spawn new process per task OR use Claude SDK directly
+   → Now: adv-c-003 (Agent process recycling for long-running tasks)
 
 2. No dependency cycle detection in add_task()
-   - Impact: Could create deadlock with circular deps
-   - Fix needed: Add topological sort validation
+   → Now: adv-c-plan-001 (DAG-based task execution with cycle detection)
 
 3. No worker crash recovery
-   - Impact: Crashed workers leave tasks in limbo
-   - Fix needed: Heartbeat timeout + task reset
+   → Now: adv-a-rec-001 (Checkpoint and restore for interrupted tasks)
 
 ## Session Format
 
@@ -69,7 +90,15 @@ When starting a session, add an entry below:
 
 <!-- Add new sessions at the top -->
 
-[2026-01-19 22:20] SESSION #3 - 🎉 ALL FEATURES VERIFIED
+[2026-01-19 22:45] SESSION #4 - 🚀 VERSION 2.0.0 LAUNCH
+- Created new feature_list.json with 200 advanced features
+- Reset progress tracking for v2.0.0
+- Previous v1.0.0 achieved 210/210 (100%) - COMPLETE!
+- New focus: Advanced coordination features
+- Categories: recovery, metrics, security, performance, reliability, testing, extensions
+- Next: Begin implementing Option A Advanced features
+
+[2026-01-19 22:20] SESSION #3 - 🎉 V1.0.0 ALL FEATURES VERIFIED
 - Completed all remaining features (83/210 -> 210/210)
 - This session verified 127 features:
   - Option A locking (10 features) - code inspection
@@ -118,13 +147,20 @@ Format: [DATE] FEATURE_ID | PASS/FAIL | Notes
 
 Important findings to share across sessions:
 
+- v1.0.0 complete: Basic coordination working across all three options
+- File locking uses fcntl on Unix, msvcrt on Windows
+- MCP server has 15 tools and 4 resources
+- Option C orchestrator supports async task execution
+
 <!-- Add discoveries here -->
 
 
 ## Notes
 
-- The feature_list.json contains 210 features organized by category
-- Each feature has specific test steps - follow them exactly
-- Only mark a feature as "passes": true after thorough verification
+- The feature_list.json now contains 200 ADVANCED features (v2.0.0)
+- Previous 210 basic features are complete (archived in git history)
+- Focus on implementing actual functionality, not just verification
+- Each feature has specific implementation steps - follow them
+- Only mark a feature as "passes": true after thorough testing
 - Commit frequently to avoid losing work
 - If context fills up, update this file first before ending session
