@@ -4,40 +4,69 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-This is a **multi-agent coordination system** for Claude Code instances. It enables multiple Claude Code terminals to work together on complex tasks by sharing a coordination layer (filesystem, MCP server, or external orchestrator).
+A **multi-agent coordination system** enabling multiple Claude Code terminals to work together on complex tasks. Uses a leader-worker pattern where Terminal 1 plans and aggregates, while Terminals 2+ claim and execute tasks.
 
 ## Architecture
 
-Three coordination options exist, each in its own directory under `claude-multi-agent/`:
+Three coordination options under `claude-multi-agent/`:
 
-| Option | Directory | Language | Coordination Method |
-|--------|-----------|----------|---------------------|
-| A | `option-a-file-based/` | Python | File polling via `.coordination/` |
+| Option | Directory | Language | Method |
+|--------|-----------|----------|--------|
+| A | `option-a-file-based/` | Python | Filesystem polling via `.coordination/` |
 | B | `option-b-mcp-broker/` | TypeScript | MCP server with shared state |
 | C | `option-c-orchestrator/` | Python | External process management |
 
-**Leader-Worker Pattern**: Terminal 1 acts as leader (plans work, creates tasks, aggregates results). Terminals 2+ are workers (claim tasks, execute, report back).
+### Shared Modules (`shared/`)
 
-## Build & Run Commands
+Cross-cutting utilities used by all options:
+- `shared/schemas/task.schema.json` - Canonical task JSON structure
+- `shared/prompts/` - System prompts for leader and worker agents
+- `shared/security/` - Auth, encryption, rate limiting, audit
+- `shared/reliability/` - Circuit breaker, retry, fallback, self-healing
+- `shared/performance/` - Caching, compression, async I/O, profiling
+- `shared/ai/` - Task prioritization, decomposition, anomaly detection
+- `shared/cross_option/` - Migration, sync, unified CLI, plugins
 
-### Option A: File-Based
+## Build & Test Commands
+
+### Option A: File-Based (Python)
 ```bash
 cd claude-multi-agent/option-a-file-based
+
+# Run CLI
+python coordination.py --help
 python coordination.py leader init "Goal description"
-python coordination.py leader add-task "Task description" -p 1
 python coordination.py worker claim terminal-2
+
+# Run tests
+pytest                              # All tests
+pytest tests/test_coordination.py   # Single file
+pytest -k "test_claim"              # Single test by name
+pytest --cov                        # With coverage (requires pytest-cov)
 ```
 
-### Option B: MCP Server
+### Option B: MCP Server (TypeScript)
 ```bash
 cd claude-multi-agent/option-b-mcp-broker
+
 npm install
 npm run build          # Compile TypeScript
 npm run dev            # Run with tsx (development)
 npm start              # Run compiled JS
+npm run watch          # Watch mode compilation
+
+# Tests
+npm test                             # All tests
+npm test -- --testPathPattern=index  # Single file
+npm test -- -t "claim"               # Single test by name
+npm run test:coverage                # With coverage
+npm run test:watch                   # Watch mode
+
+# Type checking
+npx tsc --noEmit
 ```
 
-Add to `~/.claude/mcp.json`:
+MCP config for `~/.claude/mcp.json`:
 ```json
 {
   "mcpServers": {
@@ -50,40 +79,62 @@ Add to `~/.claude/mcp.json`:
 }
 ```
 
-### Option C: Orchestrator
+### Option C: Orchestrator (Python)
 ```bash
 cd claude-multi-agent/option-c-orchestrator
-pip install -e .
-orchestrate run "Goal" -w 3              # Leader plans automatically
+
+# Setup
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -e ".[dev]"
+
+# CLI
+orchestrate --help
+orchestrate run "Goal" -w 3                          # Auto-plan with 3 workers
 orchestrate run "Goal" --no-plan --tasks tasks.json  # Predefined tasks
-pytest                                    # Run tests (requires dev deps)
+
+# Tests
+pytest                                    # All tests
+pytest tests/test_orchestrator_unit.py    # Single file
+pytest -k "test_task_claim"               # Single test by name
+pytest tests/test_property_based.py       # Property-based tests (hypothesis)
 ```
 
-## Key Files
-
-- `shared/schemas/task.schema.json` - Canonical task JSON structure
-- `shared/prompts/leader.md` - System prompt for leader agents
-- `shared/prompts/worker.md` - System prompt for worker agents
-- `option-a-file-based/coordination.py` - CLI for file-based coordination
-- `option-b-mcp-broker/src/index.ts` - MCP server implementation
-- `option-c-orchestrator/src/orchestrator/orchestrator.py` - Main orchestration logic
+### Integration Tests
+```bash
+cd claude-multi-agent
+pytest tests/integration/                 # All integration tests
+pytest tests/integration/test_workflow.py # End-to-end workflow
+pytest tests/integration/test_chaos.py    # Chaos/resilience tests
+```
 
 ## Task Lifecycle
 
 `available` → `claimed` → `in_progress` → `done` | `failed`
 
-Tasks must specify: `id`, `description`, `status`, `priority` (1=highest). Dependencies are other task IDs that must complete first.
+Task schema requires: `id`, `description`, `status`, `priority` (1=highest). Dependencies are task IDs that must complete first.
 
 ## Coordination Directory Structure (Options A & C)
 
 ```
 .coordination/
-├── master-plan.md      # Overall goal and approach
-├── tasks.json          # Task queue (source of truth)
-├── context/discoveries.md  # Shared findings between agents
-├── logs/               # Per-agent activity logs
-└── results/            # Completed task outputs (task-{id}.md)
+├── master-plan.md          # Overall goal
+├── tasks.json              # Task queue (source of truth)
+├── context/discoveries.md  # Shared findings
+├── logs/                   # Per-agent logs
+└── results/                # Completed task outputs (task-{id}.md)
 ```
+
+## Key Implementation Files
+
+| Component | File |
+|-----------|------|
+| File-based CLI | `option-a-file-based/coordination.py` |
+| MCP server | `option-b-mcp-broker/src/index.ts` |
+| Orchestrator core | `option-c-orchestrator/src/orchestrator/orchestrator.py` |
+| Task/Agent models | `option-c-orchestrator/src/orchestrator/models.py` |
+| CLI interface | `option-c-orchestrator/src/orchestrator/cli.py` |
+| Agent subprocess | `option-c-orchestrator/src/orchestrator/agent.py` |
 
 ## Race Condition Handling
 
@@ -94,67 +145,27 @@ Tasks must specify: `id`, `description`, `status`, `priority` (1=highest). Depen
 
 ## Long-Running Development Harness
 
-This project uses the "Effective Harnesses for Long-Running Agents" methodology from Anthropic for continuous development across multiple Claude sessions.
-
-### Harness Files
+Uses Anthropic's "Effective Harnesses for Long-Running Agents" methodology for continuous development.
 
 | File | Purpose |
 |------|---------|
-| `init.sh` | Environment setup script (run first) |
-| `feature_list.json` | 210 features to implement and verify |
+| `init.sh` | Environment setup (run first in new session) |
+| `feature_list.json` | 210 features to implement/verify |
 | `claude-progress.txt` | Progress tracking between sessions |
-| `CODING_AGENT.md` | Complete session instructions |
+| `CODING_AGENT.md` | Complete session workflow instructions |
 
 ### Quick Start
-
 ```bash
-# 1. Setup environment
-chmod +x init.sh && ./init.sh
-
-# 2. Check current progress
-cat claude-progress.txt
-
-# 3. See remaining features
-cat feature_list.json | python3 -c "
-import json,sys
-d=json.load(sys.stdin)
-passing=sum(1 for f in d['features'] if f['passes'])
-print(f'Progress: {passing}/{len(d[\"features\"])} features passing')
-"
+./init.sh                    # Setup all environments
+cat claude-progress.txt      # Check current progress
 ```
 
 ### Development Workflow
+1. Read `claude-progress.txt` for context
+2. Run `./init.sh` if environment needs setup
+3. Verify existing tests still pass
+4. Pick ONE feature from `feature_list.json` with `"passes": false`
+5. Implement/verify, mark `"passes": true`
+6. Update `claude-progress.txt`, commit
 
-1. **Start**: Read `claude-progress.txt` to orient yourself
-2. **Setup**: Run `./init.sh` if environment needs setup
-3. **Verify**: Check existing tests still pass
-4. **Implement**: Pick ONE feature from `feature_list.json`
-5. **Update**: Mark `"passes": true` when verified
-6. **Commit**: Commit with clear message
-7. **Document**: Update `claude-progress.txt`
-8. **Repeat**: Continue until context fills
-
-### Feature Categories
-
-- `option-a-*`: File-based coordination (50 features)
-- `option-b-*`: MCP server (45 features)
-- `option-c-*`: Python orchestrator (105 features)
-- `integration`: End-to-end tests (10 features)
-
-### Progress Tracking
-
-The `claude-progress.txt` file tracks:
-- Overall feature counts per option
-- Priority queue of what to work on next
-- Known issues and their fixes
-- Session history with summaries
-- Test results log
-
-### For New Sessions
-
-Read `CODING_AGENT.md` for detailed instructions on:
-- Getting oriented in a new session
-- Running verification tests
-- Choosing features to implement
-- Updating progress files
-- Committing changes cleanly
+See `CODING_AGENT.md` for detailed session instructions.

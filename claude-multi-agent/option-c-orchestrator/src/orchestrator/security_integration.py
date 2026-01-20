@@ -53,7 +53,7 @@ from security import (
     RotationSchedule,
 )
 
-from .orchestrator import Orchestrator
+from .async_orchestrator import Orchestrator as AsyncOrchestrator
 from .models import (
     Task,
     TaskStatus,
@@ -144,7 +144,7 @@ class SecureOrchestrator:
         self.config = security_config or SecurityConfig()
 
         # Initialize underlying orchestrator
-        self._orchestrator = Orchestrator(
+        self._orchestrator = AsyncOrchestrator(
             working_directory=working_directory,
             max_workers=max_workers,
             model=model,

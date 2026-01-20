@@ -15,11 +15,14 @@ processes without shell injection risks (equivalent to execFile in Node.js).
 import asyncio
 import json
 import os
+import threading
+import time
+from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Optional, Callable, AsyncIterator
+from typing import Optional, Callable, AsyncIterator, Any
 from pathlib import Path
 
-from .models import Agent, AgentRole, Task, TaskResult
+from .models import Agent as AgentModel, AgentRole, Task, TaskResult
 
 
 class ClaudeCodeAgent:
@@ -68,9 +71,9 @@ class ClaudeCodeAgent:
     def pid(self) -> Optional[int]:
         return self._process.pid if self._process else None
 
-    def to_model(self) -> Agent:
+    def to_model(self) -> AgentModel:
         """Convert to Agent model for state tracking."""
-        return Agent(
+        return AgentModel(
             id=self.agent_id,
             role=self.role,
             is_active=self.is_running,
@@ -526,3 +529,175 @@ class AgentPool:
         if self._leader:
             agents.insert(0, self._leader)
         return agents
+
+
+# =============================================================================
+# Synchronous Agent (test harness)
+# =============================================================================
+
+
+class AgentError(Exception):
+    """Base error for agent operations."""
+
+
+class TaskExecutionError(AgentError):
+    """Raised when task execution fails in a retryable way."""
+
+
+@dataclass
+class AgentConfig:
+    heartbeat_interval: float = 5.0
+    max_retries: int = 3
+    capabilities: list[str] = field(default_factory=list)
+
+
+class Agent:
+    """Lightweight, synchronous agent used by unit tests."""
+
+    def __init__(self, agent_id: str, coordination_dir: str, config: Optional[AgentConfig] = None):
+        self.agent_id = agent_id
+        self.coordination_dir = Path(coordination_dir)
+        self.config = config or AgentConfig()
+        self.is_running = False
+        self.last_heartbeat = datetime.now()
+
+        self._heartbeat_thread: Optional[threading.Thread] = None
+        self._heartbeat_stop = threading.Event()
+
+    # ------------------------------------------------------------------
+    # Lifecycle
+    # ------------------------------------------------------------------
+
+    def start(self) -> None:
+        self.is_running = True
+        self.register()
+
+    def stop(self) -> None:
+        self.is_running = False
+        self.stop_heartbeat()
+        self.deregister()
+        self.cleanup_resources()
+
+    def register(self) -> None:
+        """Register with orchestrator (no-op for tests)."""
+
+    def deregister(self) -> None:
+        """Deregister from orchestrator (no-op for tests)."""
+
+    def cleanup_resources(self) -> None:
+        """Cleanup any resources (no-op for tests)."""
+
+    # ------------------------------------------------------------------
+    # Tasks
+    # ------------------------------------------------------------------
+
+    def get_available_tasks(self) -> list[dict[str, Any]]:
+        tasks_file = self.coordination_dir / "tasks.json"
+        if not tasks_file.exists():
+            return []
+        try:
+            data = json.loads(tasks_file.read_text(encoding="utf-8"))
+            tasks = data.get("tasks", [])
+        except json.JSONDecodeError:
+            return []
+        return [t for t in tasks if t.get("status") == "available"]
+
+    def claim_task(self, task_id: str) -> dict[str, Any]:
+        raise AgentError("Claiming tasks requires orchestrator integration")
+
+    def try_claim_task(self) -> Optional[dict[str, Any]]:
+        try:
+            tasks = self.get_available_tasks()
+            if not tasks:
+                return None
+            tasks = sorted(tasks, key=lambda t: t.get("priority", 5))
+            return self.claim_task(tasks[0]["id"])
+        except AgentError:
+            return None
+
+    def validate_task(self, task: dict[str, Any]) -> None:
+        if "id" not in task or "description" not in task:
+            raise AgentError("Malformed task")
+
+    def load_context(self, task: dict[str, Any]) -> dict[str, Any]:
+        return task.get("context", {})
+
+    def can_handle_task(self, task: dict[str, Any]) -> bool:
+        required = task.get("required_capabilities", [])
+        return all(cap in self.config.capabilities for cap in required)
+
+    def execute_task_logic(self, task: dict[str, Any], context: Optional[dict[str, Any]] = None) -> str:
+        """Override in subclasses; returns output string."""
+        return ""
+
+    def complete_task(self, task: dict[str, Any], result: str) -> None:
+        """Mark task as complete (no-op in tests)."""
+
+    def fail_task(self, task: dict[str, Any], error: str) -> None:
+        """Mark task as failed (no-op in tests)."""
+
+    def execute_task(self, task: dict[str, Any]) -> None:
+        self.validate_task(task)
+        context = self.load_context(task)
+        try:
+            output = self.execute_task_logic(task, context)
+            self.complete_task(task, output)
+        except Exception as exc:  # noqa: BLE001 - intentional for test harness
+            self.fail_task(task, str(exc))
+
+    def execute_task_with_retry(self, task: dict[str, Any], max_retries: Optional[int] = None) -> None:
+        retries = max_retries if max_retries is not None else self.config.max_retries
+        for attempt in range(retries):
+            try:
+                output = self.execute_task_logic(task, self.load_context(task))
+                self.complete_task(task, output)
+                return
+            except TaskExecutionError:
+                if attempt >= retries - 1:
+                    self.fail_task(task, "Max retries exceeded")
+                    return
+                continue
+            except Exception as exc:  # noqa: BLE001
+                self.fail_task(task, str(exc))
+                return
+
+    # ------------------------------------------------------------------
+    # Heartbeat
+    # ------------------------------------------------------------------
+
+    def send_heartbeat_to_orchestrator(self) -> None:
+        """Hook for integration tests; no-op by default."""
+
+    def send_heartbeat(self) -> None:
+        self.last_heartbeat = datetime.now()
+        self.send_heartbeat_to_orchestrator()
+
+    def _heartbeat_loop(self) -> None:
+        while not self._heartbeat_stop.is_set():
+            self.send_heartbeat()
+            time.sleep(self.config.heartbeat_interval)
+
+    def start_heartbeat(self) -> None:
+        if self._heartbeat_thread and self._heartbeat_thread.is_alive():
+            return
+        self._heartbeat_stop.clear()
+        self._heartbeat_thread = threading.Thread(target=self._heartbeat_loop, daemon=True)
+        self._heartbeat_thread.start()
+
+    def stop_heartbeat(self) -> None:
+        self._heartbeat_stop.set()
+        if self._heartbeat_thread:
+            self._heartbeat_thread.join(timeout=1)
+            self._heartbeat_thread = None
+
+    # ------------------------------------------------------------------
+    # Work loop
+    # ------------------------------------------------------------------
+
+    def run_once(self) -> None:
+        try:
+            task = self.try_claim_task()
+            if task:
+                self.execute_task(task)
+        except ConnectionError:
+            return

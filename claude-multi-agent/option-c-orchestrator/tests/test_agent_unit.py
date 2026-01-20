@@ -57,6 +57,13 @@ class TestAgentInitialization:
             assert agent.config.max_retries == 5
             assert "python" in agent.config.capabilities
 
+    def test_agent_config_defaults(self):
+        """Test AgentConfig default values."""
+        config = AgentConfig()
+        assert config.heartbeat_interval == 5.0
+        assert config.max_retries == 3
+        assert config.capabilities == []
+
     def test_agent_registers_on_start(self):
         """Test that agent registers with orchestrator on start."""
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -241,6 +248,14 @@ class TestHeartbeat:
             agent.stop_heartbeat()
 
             assert mock_heartbeat.call_count >= 2
+
+    def test_heartbeat_thread_teardown(self, agent):
+        """Test that heartbeat thread is cleaned up on stop."""
+        agent.config.heartbeat_interval = 0.05
+        agent.start_heartbeat()
+        time.sleep(0.2)
+        agent.stop_heartbeat()
+        assert agent._heartbeat_thread is None or not agent._heartbeat_thread.is_alive()
 
 
 class TestAgentLifecycle:

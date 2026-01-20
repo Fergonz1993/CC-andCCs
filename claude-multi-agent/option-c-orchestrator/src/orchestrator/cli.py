@@ -19,7 +19,7 @@ from rich.panel import Panel
 from rich.table import Table
 from rich.syntax import Syntax
 
-from .orchestrator import Orchestrator
+from .async_orchestrator import Orchestrator as AsyncOrchestrator
 from .models import Task, TaskContext
 
 app = typer.Typer(
@@ -55,7 +55,7 @@ def run(
         # With more workers
         orchestrate run "Refactor authentication" -w 5
     """
-    orchestrator = Orchestrator(
+    orchestrator = AsyncOrchestrator(
         working_directory=cwd,
         max_workers=workers,
         model=model,
@@ -146,7 +146,7 @@ def from_config(
     with open(config_file) as f:
         config = json.load(f)
 
-    orchestrator = Orchestrator(
+    orchestrator = AsyncOrchestrator(
         working_directory=config.get("working_directory", "."),
         max_workers=config.get("max_workers", 3),
         model=config.get("model", "claude-sonnet-4-20250514"),

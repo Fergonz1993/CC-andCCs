@@ -77,6 +77,16 @@ class TestOrchestratorInitialization:
             content = plan_file.read_text()
             assert "Build a web application" in content
 
+    def test_hybrid_orchestrator_mode_selection(self):
+        """Test hybrid selection: coordination_dir -> file mode, working_directory -> async mode."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            file_orch = Orchestrator(coordination_dir=tmpdir)
+            assert not hasattr(file_orch._impl, "state")
+            assert (Path(tmpdir) / "tasks.json").exists()
+
+            async_orch = Orchestrator(working_directory=tmpdir, verbose=False)
+            assert hasattr(async_orch._impl, "state")
+
 
 class TestTaskManagement:
     """Test task creation, retrieval, and updates."""
@@ -286,6 +296,24 @@ class TestTaskClaiming:
         claimed = orchestrator.claim_task(task2["id"], "agent-1")
         assert claimed["status"] == "claimed"
 
+    def test_claim_done_task_raises(self, orchestrator):
+        """Test claiming a task that is already done."""
+        task = orchestrator.add_task("Test task", priority=1)
+        orchestrator.claim_task(task["id"], "agent-1")
+        orchestrator.complete_task(task["id"], result="Done")
+
+        with pytest.raises(OrchestrationError):
+            orchestrator.claim_task(task["id"], "agent-1")
+
+    def test_claim_failed_task_raises(self, orchestrator):
+        """Test claiming a task that has failed."""
+        task = orchestrator.add_task("Test task", priority=1)
+        orchestrator.claim_task(task["id"], "agent-1")
+        orchestrator.fail_task(task["id"], error="Failed")
+
+        with pytest.raises(OrchestrationError):
+            orchestrator.claim_task(task["id"], "agent-1")
+
 
 class TestStatePersistence:
     """Test state saving and loading."""
@@ -316,6 +344,30 @@ class TestStatePersistence:
 
             assert loaded_task is not None
             assert loaded_task["description"] == "Test task"
+
+    def test_agents_persisted_to_disk(self):
+        """Test that agents are saved to disk."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            orchestrator = Orchestrator(coordination_dir=tmpdir)
+            orchestrator.register_agent("agent-1", capabilities=["python"])
+
+            agents_file = Path(tmpdir) / "agents.json"
+            assert agents_file.exists()
+
+            data = json.loads(agents_file.read_text())
+            assert any(agent["id"] == "agent-1" for agent in data.get("agents", []))
+
+    def test_discoveries_persisted_to_disk(self):
+        """Test that discoveries are saved to disk."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            orchestrator = Orchestrator(coordination_dir=tmpdir)
+            orchestrator.add_discovery("Finding 1", "Content 1", "agent-1")
+
+            discoveries_file = Path(tmpdir) / "discoveries.json"
+            assert discoveries_file.exists()
+
+            data = json.loads(discoveries_file.read_text())
+            assert any(d["title"] == "Finding 1" for d in data.get("discoveries", []))
 
 
 class TestErrorHandling:
@@ -381,6 +433,19 @@ class TestConcurrency:
         # Second agent fails to claim
         with pytest.raises(OrchestrationError):
             orchestrator.claim_task(task["id"], "agent-2")
+
+    def test_claim_respects_disk_state(self):
+        """Test that stale instances reload disk state before claiming."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            orch1 = Orchestrator(coordination_dir=tmpdir)
+            task = orch1.add_task("Test task", priority=1)
+
+            orch2 = Orchestrator(coordination_dir=tmpdir)
+
+            orch1.claim_task(task["id"], "agent-1")
+
+            with pytest.raises(OrchestrationError):
+                orch2.claim_task(task["id"], "agent-2")
 
 
 class TestDiscoveries:

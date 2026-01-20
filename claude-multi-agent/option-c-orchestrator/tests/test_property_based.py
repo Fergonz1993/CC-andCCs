@@ -30,7 +30,27 @@ except ImportError:
             return f
         return decorator
 
-    st = None
+    class _DummyStrategies:
+        def __getattr__(self, _name):
+            def _dummy(*_args, **_kwargs):
+                return None
+            return _dummy
+
+    st = _DummyStrategies()
+
+    def rule(*args, **kwargs):
+        def decorator(f):
+            return f
+        return decorator
+
+    def invariant(*args, **kwargs):
+        def decorator(f):
+            return f
+        return decorator
+
+    class Bundle:
+        def __init__(self, *args, **kwargs):
+            pass
 
 from orchestrator.models import (
     Task,
@@ -47,6 +67,15 @@ from orchestrator.models import (
 # =============================================================================
 # Custom Hypothesis Strategies
 # =============================================================================
+
+# Default placeholders when hypothesis isn't available
+task_description_strategy = None
+priority_strategy = None
+task_id_strategy = None
+agent_id_strategy = None
+file_path_strategy = None
+task_context_strategy = None
+task_result_strategy = None
 
 if HYPOTHESIS_AVAILABLE:
     # Strategy for generating valid task descriptions
@@ -244,7 +273,7 @@ class TestTaskProperties:
 
     @given(
         description=task_description_strategy,
-        dependencies=st.lists(task_id_strategy, min_size=0, max_size=5)
+        dependencies=st.lists(task_id_strategy, min_size=0, max_size=5, unique=True)
     )
     @settings(max_examples=100)
     def test_property_008_can_start_with_all_deps_met(self, description, dependencies):

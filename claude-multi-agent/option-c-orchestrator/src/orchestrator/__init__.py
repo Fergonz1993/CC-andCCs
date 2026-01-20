@@ -58,6 +58,7 @@ Monitoring Features (v2.1):
 from .models import Task, TaskStatus, Agent, AgentRole, CoordinationState
 from .agent import ClaudeCodeAgent
 from .orchestrator import Orchestrator
+from .async_orchestrator import Orchestrator as AsyncOrchestrator
 from .cli import app
 
 # Advanced features
@@ -145,6 +146,7 @@ __all__ = [
     "CoordinationState",
     "ClaudeCodeAgent",
     "Orchestrator",
+    "AsyncOrchestrator",
     "app",
     # adv-c-001: Adaptive worker scaling
     "ScalingConfig",

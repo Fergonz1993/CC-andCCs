@@ -148,6 +148,9 @@ class TestDocGenerator:
                     module.test_cases.append(test_case)
                     self.catalog.total_tests += 1
 
+        # Keep sync tests before async tests for deterministic ordering
+        module.test_cases.sort(key=lambda t: (t.is_async, t.line_number))
+
         return module
 
     def _extract_tests_from_class(
@@ -190,8 +193,11 @@ class TestDocGenerator:
         category = "general"
         if class_name:
             # TestTaskModel -> task_model
-            category = re.sub(r'Test', '', class_name)
-            category = re.sub(r'([A-Z])', r'_\1', category).lower().strip('_')
+            raw = re.sub(r'^Test', '', class_name)
+            if raw.isupper():
+                category = raw.lower()
+            else:
+                category = re.sub(r'(?<!^)(?=[A-Z][a-z])', '_', raw).lower()
         elif '_' in node.name:
             # test_task_creation -> task
             parts = node.name.split('_')

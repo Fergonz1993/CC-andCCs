@@ -1,0 +1,23 @@
+{
+  "completion_token": "<<<RALPH_DONE>>>",
+  "verify_feature_passes": true,
+  "features_first": true,
+  "test_commands": [
+    "bash -lc \"cd claude-multi-agent/option-c-orchestrator && source .venv/bin/activate && pytest\"",
+    "bash -lc \"cd claude-multi-agent/option-c-orchestrator && source .venv/bin/activate && python -m pip_audit\"",
+    "bash -lc \"cd claude-multi-agent/option-b-mcp-broker && npm test\"",
+    "bash -lc \"cd claude-multi-agent/option-b-mcp-broker && npm audit --omit=dev\"",
+    "bash -lc \"cd claude-multi-agent/extensions/api/rest && if [ -f package-lock.json ] || [ -f pnpm-lock.yaml ] || [ -f yarn.lock ] || [ -d node_modules ]; then npm audit --omit=dev; else echo 'skip audit: extensions/api/rest (no lockfile)'; fi\"",
+    "bash -lc \"cd claude-multi-agent/extensions/api/graphql && if [ -f package-lock.json ] || [ -f pnpm-lock.yaml ] || [ -f yarn.lock ] || [ -d node_modules ]; then npm audit --omit=dev; else echo 'skip audit: extensions/api/graphql (no lockfile)'; fi\"",
+    "bash -lc \"cd claude-multi-agent/extensions/monitoring/prometheus && if [ -f package-lock.json ] || [ -f pnpm-lock.yaml ] || [ -f yarn.lock ] || [ -d node_modules ]; then npm audit --omit=dev; else echo 'skip audit: extensions/monitoring/prometheus (no lockfile)'; fi\"",
+    "bash -lc \"cd claude-multi-agent/extensions/monitoring/opentelemetry && if [ -f package-lock.json ] || [ -f pnpm-lock.yaml ] || [ -f yarn.lock ] || [ -d node_modules ]; then npm audit --omit=dev; else echo 'skip audit: extensions/monitoring/opentelemetry (no lockfile)'; fi\"",
+    "bash -lc \"cd claude-multi-agent/extensions/integrations/github && if [ -f package-lock.json ] || [ -f pnpm-lock.yaml ] || [ -f yarn.lock ] || [ -d node_modules ]; then npm audit --omit=dev; else echo 'skip audit: extensions/integrations/github (no lockfile)'; fi\"",
+    "bash -lc \"cd claude-multi-agent/extensions/integrations/slack && if [ -f package-lock.json ] || [ -f pnpm-lock.yaml ] || [ -f yarn.lock ] || [ -d node_modules ]; then npm audit --omit=dev; else echo 'skip audit: extensions/integrations/slack (no lockfile)'; fi\"",
+    "bash -lc \"cd claude-multi-agent/extensions/integrations/webhook && if [ -f package-lock.json ] || [ -f pnpm-lock.yaml ] || [ -f yarn.lock ] || [ -d node_modules ]; then npm audit --omit=dev; else echo 'skip audit: extensions/integrations/webhook (no lockfile)'; fi\"",
+    "bash -lc \"cd claude-multi-agent/extensions/cli-plugins && if [ -f package-lock.json ] || [ -f pnpm-lock.yaml ] || [ -f yarn.lock ] || [ -d node_modules ]; then npm audit --omit=dev; else echo 'skip audit: extensions/cli-plugins (no lockfile)'; fi\"",
+    "bash -lc \"cd claude-multi-agent/extensions/web-dashboard && if [ -f package-lock.json ] || [ -f pnpm-lock.yaml ] || [ -f yarn.lock ] || [ -d node_modules ]; then npm audit --omit=dev; else echo 'skip audit: extensions/web-dashboard (no lockfile)'; fi\"",
+    "bash -lc \"cd claude-multi-agent/extensions/vscode-extension && if [ -f package-lock.json ] || [ -f pnpm-lock.yaml ] || [ -f yarn.lock ] || [ -d node_modules ]; then npm audit --omit=dev; else echo 'skip audit: extensions/vscode-extension (no lockfile)'; fi\"",
+    "bash -lc \"cd claude-multi-agent/option-a-file-based && python3 coordination.py --help\""
+  ],
+  "optional_test_commands": []
+}

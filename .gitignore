@@ -36,8 +36,14 @@ yarn-error.log*
 coverage/
 .nyc_output/
 .pytest_cache/
+.hypothesis/
 
 # Misc
 *.tmp
 *.temp
 .cache/
+
+# Local agent artifacts
+.codex/
+vercel-agent-skills/
+2026-01-19-local-command-caveatcaveat-the-messages-below-w.txt

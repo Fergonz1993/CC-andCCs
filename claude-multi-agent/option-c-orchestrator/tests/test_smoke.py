@@ -88,6 +88,15 @@ class TestImportSmoke:
         assert ClaudeCodeAgent is not None
         assert AgentPool is not None
 
+    def test_smoke_004_cli_uses_async_orchestrator(self):
+        """
+        smoke-004a: CLI defaults to async orchestrator implementation.
+        """
+        from orchestrator import cli as cli_module
+        from orchestrator.async_orchestrator import Orchestrator as AsyncOrchestrator
+
+        assert cli_module.AsyncOrchestrator is AsyncOrchestrator
+
 
 # =============================================================================
 # Task Model Smoke Tests

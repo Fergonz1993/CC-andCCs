@@ -21,6 +21,8 @@ dependencies = [
 dev = [
     "pytest>=7.0.0",
     "pytest-asyncio>=0.21.0",
+    "hypothesis>=6.0.0",
+    "pip-audit>=2.7.0",
 ]
 sandbox = [
     "psutil>=5.9.0",  # For resource monitoring in task sandboxing (adv-c-009)

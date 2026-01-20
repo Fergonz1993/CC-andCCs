@@ -21,7 +21,7 @@ import * as path from "path";
 jest.mock("@modelcontextprotocol/sdk/server/index.js", () => ({
   Server: jest.fn().mockImplementation(() => ({
     setRequestHandler: jest.fn(),
-    connect: jest.fn().mockResolvedValue(void 0),
+    connect: jest.fn((): Promise<void> => Promise.resolve()),
   })),
 }));
 
