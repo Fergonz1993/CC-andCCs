@@ -1,0 +1,123 @@
+{
+  "goal": "Add user authentication system with JWT tokens to an Express.js web application, including user registration, login, password reset, and protected route middleware",
+  "working_directory": ".",
+  "max_workers": 3,
+  "tasks": [
+    {
+      "id": "task-001",
+      "description": "Create the database schema and models for user authentication. Define a User model with fields for id, email (unique), password_hash, created_at, updated_at, email_verified, and password_reset_token. Include proper indexes for email lookups and implement password hashing utilities using bcrypt.",
+      "priority": 1,
+      "dependencies": [],
+      "context_files": [
+        "package.json",
+        "src/db/connection.js"
+      ],
+      "hints": [
+        "Use bcrypt with a salt rounds value of 12 for password hashing",
+        "Create both the migration file and the model file",
+        "Add validation for email format in the model",
+        "Consider adding a method to the model for password comparison"
+      ]
+    },
+    {
+      "id": "task-002",
+      "description": "Implement JWT token utilities including token generation, verification, and refresh token logic. Create helper functions for creating access tokens (15 min expiry) and refresh tokens (7 day expiry). Include proper error handling for expired and invalid tokens.",
+      "priority": 1,
+      "dependencies": [],
+      "context_files": [
+        "package.json",
+        ".env.example"
+      ],
+      "hints": [
+        "Use the jsonwebtoken library",
+        "Store JWT_SECRET and JWT_REFRESH_SECRET in environment variables",
+        "Create separate functions for access and refresh tokens",
+        "Include user id and email in the token payload, but never the password"
+      ]
+    },
+    {
+      "id": "task-003",
+      "description": "Build the authentication middleware that protects routes. Create middleware functions for: requireAuth (validates JWT from Authorization header), optionalAuth (attaches user if token present but doesn't block), and requireRole (checks user roles for authorization).",
+      "priority": 2,
+      "dependencies": [
+        "task-002"
+      ],
+      "context_files": [
+        "src/middleware/index.js",
+        "src/utils/jwt.js"
+      ],
+      "hints": [
+        "Extract token from 'Bearer <token>' format in Authorization header",
+        "Attach decoded user to req.user for downstream handlers",
+        "Return 401 for missing/invalid tokens, 403 for insufficient permissions",
+        "Handle token expiration with a clear error message"
+      ]
+    },
+    {
+      "id": "task-004",
+      "description": "Create the authentication API routes and controllers. Implement POST /auth/register, POST /auth/login, POST /auth/logout, POST /auth/refresh-token, and GET /auth/me endpoints. Include input validation, proper error responses, and rate limiting considerations.",
+      "priority": 2,
+      "dependencies": [
+        "task-001",
+        "task-002"
+      ],
+      "context_files": [
+        "src/routes/index.js",
+        "src/models/User.js",
+        "src/utils/jwt.js"
+      ],
+      "hints": [
+        "Use express-validator for input validation",
+        "Return consistent error response format: { error: { message, code } }",
+        "Hash password before storing, never store plain text",
+        "Set refresh token in httpOnly cookie for security",
+        "Return user profile (without password) along with tokens on login"
+      ]
+    },
+    {
+      "id": "task-005",
+      "description": "Implement password reset flow with email functionality. Create POST /auth/forgot-password (generates reset token, sends email) and POST /auth/reset-password (validates token, updates password) endpoints. Include token expiration (1 hour) and single-use token logic.",
+      "priority": 3,
+      "dependencies": [
+        "task-001",
+        "task-004"
+      ],
+      "context_files": [
+        "src/routes/auth.js",
+        "src/models/User.js",
+        "src/services/email.js"
+      ],
+      "hints": [
+        "Generate cryptographically secure reset tokens using crypto.randomBytes",
+        "Store hashed reset token in database, not plain text",
+        "Include token expiration timestamp in the database",
+        "Invalidate token after successful password reset",
+        "Send password reset link via email service (can mock for development)"
+      ]
+    },
+    {
+      "id": "task-006",
+      "description": "Write comprehensive tests for the authentication system. Create unit tests for JWT utilities and password hashing, integration tests for all auth endpoints, and test the middleware with mock requests. Aim for >80% code coverage on auth-related code.",
+      "priority": 3,
+      "dependencies": [
+        "task-003",
+        "task-004",
+        "task-005"
+      ],
+      "context_files": [
+        "src/routes/auth.js",
+        "src/middleware/auth.js",
+        "src/utils/jwt.js",
+        "jest.config.js"
+      ],
+      "hints": [
+        "Use Jest with supertest for API endpoint testing",
+        "Create test fixtures for user data",
+        "Test both success and error cases for each endpoint",
+        "Mock the email service in tests",
+        "Test token expiration by mocking Date.now() or using short-lived test tokens",
+        "Include tests for edge cases: duplicate email, invalid password format, expired tokens"
+      ]
+    }
+  ]
+}

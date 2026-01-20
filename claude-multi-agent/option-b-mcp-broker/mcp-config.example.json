@@ -1,0 +1,13 @@
+{
+  "mcpServers": {
+    "multi-agent-coordinator": {
+      "command": "node",
+      "args": [
+        "<path-to-project>/option-b-mcp-broker/dist/index.js"
+      ],
+      "env": {
+        "COORDINATION_DIR": "<coordination-dir>"
+      }
+    }
+  }
+}

@@ -1,0 +1,68 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Task",
+  "description": "A task in the multi-agent coordination system",
+  "type": "object",
+  "properties": {
+    "id": {
+      "type": "string",
+      "description": "Unique task identifier"
+    },
+    "description": {
+      "type": "string",
+      "description": "What needs to be done"
+    },
+    "status": {
+      "type": "string",
+      "enum": ["available", "claimed", "in_progress", "done", "failed"],
+      "description": "Current task status"
+    },
+    "claimed_by": {
+      "type": ["string", "null"],
+      "description": "Agent/terminal that claimed this task"
+    },
+    "priority": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 10,
+      "description": "Task priority (1 = highest)"
+    },
+    "dependencies": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Task IDs that must complete before this one"
+    },
+    "context": {
+      "type": "object",
+      "description": "Additional context for the task",
+      "properties": {
+        "files": { "type": "array", "items": { "type": "string" } },
+        "hints": { "type": "string" },
+        "parent_task": { "type": "string" }
+      }
+    },
+    "result": {
+      "type": ["object", "null"],
+      "description": "Task result once completed",
+      "properties": {
+        "output": { "type": "string" },
+        "files_modified": { "type": "array", "items": { "type": "string" } },
+        "files_created": { "type": "array", "items": { "type": "string" } },
+        "notes": { "type": "string" }
+      }
+    },
+    "created_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "claimed_at": {
+      "type": ["string", "null"],
+      "format": "date-time"
+    },
+    "completed_at": {
+      "type": ["string", "null"],
+      "format": "date-time"
+    }
+  },
+  "required": ["id", "description", "status", "priority"]
+}

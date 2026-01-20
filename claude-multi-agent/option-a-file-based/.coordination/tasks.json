@@ -1,0 +1,79 @@
+{
+  "version": "1.0",
+  "created_at": "2026-01-19T20:54:25.282933",
+  "last_updated": "2026-01-19T20:55:10.876378",
+  "tasks": [
+    {
+      "id": "task-20260119205434-ad93",
+      "description": "Design User model with Prisma - id, email, passwordHash, createdAt",
+      "status": "done",
+      "priority": 1,
+      "dependencies": [],
+      "context": {
+        "files": [
+          "prisma/schema.prisma"
+        ],
+        "hints": ""
+      },
+      "created_at": "2026-01-19T20:54:34.535021",
+      "claimed_by": "terminal-2",
+      "claimed_at": "2026-01-19T20:54:47.583093",
+      "completed_at": "2026-01-19T20:55:10.572059",
+      "result": {
+        "output": "Created User model with id, email, passwordHash, createdAt, updatedAt fields. Added unique constraint on email.",
+        "files_modified": [
+          "prisma/schema.prisma"
+        ],
+        "files_created": []
+      }
+    },
+    {
+      "id": "task-20260119205434-657d",
+      "description": "Implement bcrypt password hashing utility",
+      "status": "done",
+      "priority": 1,
+      "dependencies": [],
+      "context": {
+        "files": [
+          "src/utils/password.ts"
+        ],
+        "hints": ""
+      },
+      "created_at": "2026-01-19T20:54:34.817085",
+      "claimed_by": "terminal-3",
+      "claimed_at": "2026-01-19T20:54:55.339577",
+      "completed_at": "2026-01-19T20:55:10.876371",
+      "result": {
+        "output": "Implemented hashPassword() and verifyPassword() using bcrypt with 12 rounds.",
+        "files_modified": [],
+        "files_created": [
+          "src/utils/password.ts"
+        ]
+      }
+    },
+    {
+      "id": "task-20260119205435-5dbc",
+      "description": "Create POST /auth/login and /auth/register endpoints",
+      "status": "available",
+      "priority": 2,
+      "dependencies": [],
+      "context": {
+        "files": [],
+        "hints": "Use JWT tokens, validate input"
+      },
+      "created_at": "2026-01-19T20:54:35.090928"
+    },
+    {
+      "id": "task-20260119205435-5448",
+      "description": "Write integration tests for authentication flow",
+      "status": "available",
+      "priority": 3,
+      "dependencies": [],
+      "context": {
+        "files": [],
+        "hints": "Test success and failure cases"
+      },
+      "created_at": "2026-01-19T20:54:35.371314"
+    }
+  ]
+}
