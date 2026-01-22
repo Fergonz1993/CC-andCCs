@@ -373,3 +373,157 @@ class TestBenchmarkFileIO:
         # Both should be fast (< 5ms)
         assert serialize_result.mean < 0.005
         assert deserialize_result.mean < 0.005
+
+
+class TestBenchmarkOptionCClaimComplete:
+    """Benchmarks for Option C orchestrator claim/complete cycles (ATOM-110)."""
+
+    def test_benchmark_option_c_claim_complete_cycle(self, option_c_module):
+        """bench-c-001: Benchmark full claim->complete cycle for Option C."""
+        import tempfile
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            from orchestrator import Orchestrator
+
+            orch = Orchestrator(coordination_dir=tmpdir)
+
+            # Create tasks
+            task_ids = []
+            for i in range(50):
+                task = orch.add_task(f"Benchmark task {i}", priority=i % 10 + 1)
+                task_ids.append(task["id"])
+
+            # Measure claim->complete cycles
+            cycle_times = []
+            for i, task_id in enumerate(task_ids):
+                agent_id = f"bench-agent-{i}"
+
+                start = time.perf_counter()
+                orch.claim_task(task_id, agent_id)
+                orch.complete_task(task_id, f"Result for {task_id}")
+                elapsed = time.perf_counter() - start
+
+                cycle_times.append(elapsed)
+
+            result = BenchmarkResult("claim_complete_cycle", cycle_times)
+            print(f"\nOption C Claim->Complete Cycle:\n{result}")
+
+            # Assert reasonable performance (< 100ms per cycle)
+            assert result.mean < 0.1, f"Claim/complete cycle too slow: {result.mean*1000:.2f}ms"
+            # Also check 95th percentile
+            p95 = sorted(cycle_times)[int(len(cycle_times) * 0.95)]
+            assert p95 < 0.15, f"95th percentile too high: {p95*1000:.2f}ms"
+
+    def test_benchmark_option_c_claim_throughput(self, option_c_module):
+        """bench-c-002: Benchmark task claiming throughput for Option C."""
+        import tempfile
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            from orchestrator import Orchestrator
+
+            orch = Orchestrator(coordination_dir=tmpdir)
+
+            # Create many tasks
+            task_count = 100
+            for i in range(task_count):
+                orch.add_task(f"Throughput task {i}", priority=5)
+
+            # Measure claim throughput
+            start = time.perf_counter()
+            for i in range(task_count):
+                tasks = orch.get_available_tasks()
+                if tasks:
+                    orch.claim_task(tasks[0]["id"], f"throughput-agent-{i}")
+            elapsed = time.perf_counter() - start
+
+            throughput = task_count / elapsed
+            print(f"\nOption C Claim Throughput: {throughput:.1f} claims/sec")
+
+            # Should achieve at least 10 claims/sec
+            assert throughput > 10, f"Throughput too low: {throughput:.1f} claims/sec"
+
+    def test_benchmark_option_c_metrics_overhead(self, option_c_module):
+        """bench-c-003: Benchmark overhead of metrics collection."""
+        import tempfile
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            from orchestrator import Orchestrator
+
+            orch = Orchestrator(coordination_dir=tmpdir)
+
+            # Create and complete tasks while collecting metrics
+            iterations = 50
+            metrics_times = []
+
+            for i in range(iterations):
+                task = orch.add_task(f"Metrics benchmark {i}", priority=5)
+                orch.claim_task(task["id"], f"metrics-agent-{i}")
+                orch.complete_task(task["id"], "Done")
+
+                start = time.perf_counter()
+                orch.get_metrics(format="json")
+                metrics_times.append(time.perf_counter() - start)
+
+            result = BenchmarkResult("get_metrics", metrics_times)
+            print(f"\nOption C Metrics Overhead:\n{result}")
+
+            # Metrics collection should be fast (< 10ms)
+            assert result.mean < 0.01, f"Metrics overhead too high: {result.mean*1000:.2f}ms"
+
+    def test_benchmark_option_c_concurrent_claims(self, option_c_module):
+        """bench-c-004: Benchmark concurrent claim operations with file locking."""
+        import tempfile
+        import threading
+        from concurrent.futures import ThreadPoolExecutor
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            from orchestrator import Orchestrator
+
+            orch = Orchestrator(coordination_dir=tmpdir)
+
+            # Create tasks
+            task_count = 100
+            for i in range(task_count):
+                orch.add_task(f"Concurrent task {i}", priority=5)
+
+            successful_claims = {"count": 0}
+            lock = threading.Lock()
+            claim_times = []
+
+            def claim_worker(worker_id: int):
+                local_orch = Orchestrator(coordination_dir=tmpdir)
+                for _ in range(10):  # Each worker tries 10 claims
+                    tasks = local_orch.get_available_tasks()
+                    if not tasks:
+                        break
+                    try:
+                        start = time.perf_counter()
+                        local_orch.claim_task(tasks[0]["id"], f"worker-{worker_id}")
+                        elapsed = time.perf_counter() - start
+                        with lock:
+                            successful_claims["count"] += 1
+                            claim_times.append(elapsed)
+                    except (ValueError, KeyError) as e:
+                        # Expected: another worker claimed the task first (race condition)
+                        # ValueError: task not found or already claimed
+                        # KeyError: task removed from available list
+                        pass
+                    except Exception as e:
+                        # Unexpected error - log it for debugging
+                        import logging
+                        logging.warning(f"Unexpected error in concurrent claim test: {type(e).__name__}: {e}")
+
+            # Run with 5 concurrent workers
+            with ThreadPoolExecutor(max_workers=5) as executor:
+                futures = [executor.submit(claim_worker, i) for i in range(5)]
+                for f in futures:
+                    f.result()
+
+            print(f"\nConcurrent Claims:")
+            print(f"  Successful claims: {successful_claims['count']}")
+            if claim_times:
+                result = BenchmarkResult("concurrent_claim", claim_times)
+                print(f"  {result}")
+
+            # Should have claimed some tasks successfully
+            assert successful_claims["count"] > 0

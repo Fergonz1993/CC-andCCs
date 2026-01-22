@@ -20,7 +20,7 @@ from rich.table import Table
 from rich.syntax import Syntax
 
 from .async_orchestrator import Orchestrator as AsyncOrchestrator
-from .models import Task, TaskContext
+from .config import DEFAULT_MODEL, DEFAULT_MAX_WORKERS, DEFAULT_TASK_TIMEOUT
 
 app = typer.Typer(
     name="orchestrate",
@@ -33,9 +33,9 @@ console = Console()
 @app.command()
 def run(
     goal: str = typer.Argument(..., help="The goal to accomplish"),
-    workers: int = typer.Option(3, "--workers", "-w", help="Number of worker agents"),
-    model: str = typer.Option("claude-sonnet-4-20250514", "--model", "-m", help="Model to use"),
-    timeout: int = typer.Option(600, "--timeout", "-t", help="Task timeout in seconds"),
+    workers: int = typer.Option(DEFAULT_MAX_WORKERS, "--workers", "-w", help="Number of worker agents"),
+    model: str = typer.Option(DEFAULT_MODEL, "--model", "-m", help="Model to use"),
+    timeout: int = typer.Option(DEFAULT_TASK_TIMEOUT, "--timeout", "-t", help="Task timeout in seconds"),
     cwd: str = typer.Option(".", "--cwd", "-C", help="Working directory"),
     plan: bool = typer.Option(True, "--plan/--no-plan", help="Let leader create plan"),
     tasks_file: Optional[str] = typer.Option(None, "--tasks", "-f", help="JSON file with predefined tasks"),
@@ -95,7 +95,10 @@ def run(
         ))
 
         if output:
-            with open(output, 'w') as f:
+            # EC-1 fix: Ensure parent directory exists
+            output_path = Path(output)
+            output_path.parent.mkdir(parents=True, exist_ok=True)
+            with open(output_path, 'w') as f:
                 json.dump(result, f, indent=2)
             console.print(f"[green]Results saved to {output}[/]")
 
@@ -121,9 +124,9 @@ def init(
     config = {
         "goal": goal,
         "working_directory": str(Path(cwd).resolve()),
-        "max_workers": 3,
-        "model": "claude-sonnet-4-20250514",
-        "task_timeout": 600,
+        "max_workers": DEFAULT_MAX_WORKERS,
+        "model": DEFAULT_MODEL,
+        "task_timeout": DEFAULT_TASK_TIMEOUT,
         "tasks": [],
     }
 
@@ -148,9 +151,9 @@ def from_config(
 
     orchestrator = AsyncOrchestrator(
         working_directory=config.get("working_directory", "."),
-        max_workers=config.get("max_workers", 3),
-        model=config.get("model", "claude-sonnet-4-20250514"),
-        task_timeout=config.get("task_timeout", 600),
+        max_workers=config.get("max_workers", DEFAULT_MAX_WORKERS),
+        model=config.get("model", DEFAULT_MODEL),
+        task_timeout=config.get("task_timeout", DEFAULT_TASK_TIMEOUT),
         verbose=not quiet,
     )
 
@@ -260,9 +263,9 @@ def example():
     example_config = {
         "goal": "Build a user authentication system",
         "working_directory": "/path/to/project",
-        "max_workers": 3,
-        "model": "claude-sonnet-4-20250514",
-        "task_timeout": 600,
+        "max_workers": DEFAULT_MAX_WORKERS,
+        "model": DEFAULT_MODEL,
+        "task_timeout": DEFAULT_TASK_TIMEOUT,
         "tasks": [
             {
                 "description": "Create User model with email, password hash, and timestamps",

@@ -7,6 +7,7 @@
     "bash -lc \"cd claude-multi-agent/option-c-orchestrator && source .venv/bin/activate && python -m pip_audit\"",
     "bash -lc \"cd claude-multi-agent/option-b-mcp-broker && npm test\"",
     "bash -lc \"cd claude-multi-agent/option-b-mcp-broker && npm audit --omit=dev\"",
+    "bash -lc \"cd claude-multi-agent/option-b-mcp-broker && npm run typecheck\"",
     "bash -lc \"cd claude-multi-agent/extensions/api/rest && if [ -f package-lock.json ] || [ -f pnpm-lock.yaml ] || [ -f yarn.lock ] || [ -d node_modules ]; then npm audit --omit=dev; else echo 'skip audit: extensions/api/rest (no lockfile)'; fi\"",
     "bash -lc \"cd claude-multi-agent/extensions/api/graphql && if [ -f package-lock.json ] || [ -f pnpm-lock.yaml ] || [ -f yarn.lock ] || [ -d node_modules ]; then npm audit --omit=dev; else echo 'skip audit: extensions/api/graphql (no lockfile)'; fi\"",
     "bash -lc \"cd claude-multi-agent/extensions/monitoring/prometheus && if [ -f package-lock.json ] || [ -f pnpm-lock.yaml ] || [ -f yarn.lock ] || [ -d node_modules ]; then npm audit --omit=dev; else echo 'skip audit: extensions/monitoring/prometheus (no lockfile)'; fi\"",
@@ -19,5 +20,8 @@
     "bash -lc \"cd claude-multi-agent/extensions/vscode-extension && if [ -f package-lock.json ] || [ -f pnpm-lock.yaml ] || [ -f yarn.lock ] || [ -d node_modules ]; then npm audit --omit=dev; else echo 'skip audit: extensions/vscode-extension (no lockfile)'; fi\"",
     "bash -lc \"cd claude-multi-agent/option-a-file-based && python3 coordination.py --help\""
   ],
-  "optional_test_commands": []
+  "optional_test_commands": [
+    "bash -lc \"cd claude-multi-agent/option-c-orchestrator && source .venv/bin/activate && pytest --cov --cov-report=html:artifacts/coverage --cov-report=xml && echo 'Coverage report: artifacts/coverage/index.html'\"",
+    "bash -lc \"cd claude-multi-agent/option-b-mcp-broker && npm run test:coverage && echo 'Coverage report: coverage/lcov-report/index.html'\""
+  ]
 }

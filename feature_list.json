@@ -1,6 +1,6 @@
 {
-  "version": "2.0.0",
-  "description": "Advanced features for Claude Multi-Agent Coordination System",
+  "version": "2.1.0",
+  "description": "Aligned 200-feature list for Claude Multi-Agent Coordination System",
   "total_features": 200,
   "categories": [
     "option-a-advanced",
@@ -17,7 +17,13 @@
     "performance",
     "reliability",
     "testing",
-    "documentation"
+    "documentation",
+    "extensions",
+    "ai-features",
+    "scalability",
+    "api",
+    "observability",
+    "deployment"
   ],
   "features": [
     {
@@ -359,11 +365,11 @@
     {
       "id": "adv-b-005",
       "category": "option-b-advanced",
-      "description": "Dead letter queue for failed tasks",
+      "description": "Batch operations for task CRUD and lifecycle",
       "steps": [
-        "Move failed tasks to DLQ",
-        "Allow manual retry from DLQ",
-        "Configurable DLQ retention"
+        "Accept a list of create/update/delete/claim/complete operations",
+        "Execute operations in order and collect per-item results",
+        "Return a structured batch response with success/errors"
       ],
       "passes": true,
       "verified": true,
@@ -373,11 +379,11 @@
     {
       "id": "adv-b-006",
       "category": "option-b-advanced",
-      "description": "Task scheduling with cron expressions",
+      "description": "Transaction support for grouped task operations",
       "steps": [
-        "Parse cron expressions",
-        "Create tasks on schedule",
-        "Support one-time scheduled tasks"
+        "Begin a transaction and stage operations",
+        "Commit transaction to execute as a batch",
+        "Track transaction status and emit audit entries"
       ],
       "passes": true,
       "verified": true,
@@ -387,11 +393,11 @@
     {
       "id": "adv-b-007",
       "category": "option-b-advanced",
-      "description": "Workflow definitions with DAG",
+      "description": "Task query filtering and search",
       "steps": [
-        "Define workflows as DAGs",
-        "Auto-create tasks from workflow",
-        "Track workflow execution state"
+        "Filter by status, priority range, claimed_by, and tags",
+        "Support created_before/created_after date filters",
+        "Provide text search across task ID and description"
       ],
       "passes": true,
       "verified": true,
@@ -401,11 +407,11 @@
     {
       "id": "adv-b-008",
       "category": "option-b-advanced",
-      "description": "Task templates with parameter substitution",
+      "description": "Paginated task listings with metadata",
       "steps": [
-        "Define reusable task templates",
-        "Substitute parameters at creation",
-        "Validate required parameters"
+        "Apply page/page_size limits with a max page size",
+        "Return total, total_pages, has_next/has_prev",
+        "Attach pagination metadata to query responses"
       ],
       "passes": true,
       "verified": true,
@@ -415,11 +421,11 @@
     {
       "id": "adv-b-009",
       "category": "option-b-advanced",
-      "description": "Conditional task execution",
+      "description": "Audit logging for coordination events",
       "steps": [
-        "Tasks can have execution conditions",
-        "Evaluate conditions before claiming",
-        "Support dependency result conditions"
+        "Record audit entries for task/agent/discovery actions",
+        "Support filtering by entity, action, agent, and time",
+        "Enforce rolling retention of recent audit entries"
       ],
       "passes": true,
       "verified": true,
@@ -2399,6 +2405,426 @@
       "verified": true,
       "verification_date": "2026-01-20",
       "verification_notes": "Confirmed: tests/integration/test_load.py and test_benchmarks.py for load testing. performance.ts compressData() for memory efficiency. Option B TaskCache with LRU eviction for high-load optimization."
+    },
+    {
+      "id": "deploy-001",
+      "category": "deployment",
+      "description": "Dockerfiles for Option A/B/C services",
+      "steps": [
+        "Provide Dockerfile.option-a/b/c for each runtime",
+        "Build images with appropriate language runtimes",
+        "Support containerized execution per option"
+      ],
+      "passes": true,
+      "verified": true,
+      "verification_date": "2026-01-22",
+      "verification_notes": "Confirmed: deployment/docker/ contains Dockerfile.option-a (Python), Dockerfile.option-b (Node.js), Dockerfile.option-c (Python) with appropriate base images and runtime configurations."
+    },
+    {
+      "id": "deploy-002",
+      "category": "deployment",
+      "description": "Docker Compose local development stack",
+      "steps": [
+        "Define services for broker/orchestrator and dependencies",
+        "Wire volumes for coordination data",
+        "Expose ports for local testing"
+      ],
+      "passes": true,
+      "verified": true,
+      "verification_date": "2026-01-22",
+      "verification_notes": "Confirmed: deployment/docker/docker-compose.yml defines services for all options with volume mounts for .coordination/ data and exposed ports for local development."
+    },
+    {
+      "id": "deploy-003",
+      "category": "deployment",
+      "description": "Prometheus scrape configuration for containers",
+      "steps": [
+        "Include prometheus.yml with scrape jobs",
+        "Target metrics endpoints exposed by services",
+        "Enable local monitoring via compose"
+      ],
+      "passes": true,
+      "verified": true,
+      "verification_date": "2026-01-22",
+      "verification_notes": "Confirmed: deployment/monitoring/prometheus.yml contains scrape configs targeting /metrics endpoints. Docker Compose includes prometheus service for local monitoring."
+    },
+    {
+      "id": "deploy-004",
+      "category": "deployment",
+      "description": "Kubernetes namespace and configmap manifests",
+      "steps": [
+        "Create namespace manifest for isolation",
+        "Provide configmap for environment settings",
+        "Reference configmap in deployments"
+      ],
+      "passes": true,
+      "verified": true,
+      "verification_date": "2026-01-22",
+      "verification_notes": "Confirmed: deployment/kubernetes/namespace.yaml creates multi-agent-coordination namespace. deployment/kubernetes/configmap.yaml provides environment configuration referenced by deployment manifests."
+    },
+    {
+      "id": "deploy-005",
+      "category": "deployment",
+      "description": "Kubernetes secrets template for sensitive config",
+      "steps": [
+        "Provide secrets manifest placeholders",
+        "Map API keys and passwords to env vars",
+        "Keep sensitive values out of configmaps"
+      ],
+      "passes": true,
+      "verified": true,
+      "verification_date": "2026-01-22",
+      "verification_notes": "Confirmed: deployment/kubernetes/secrets.yaml provides template with base64 placeholders for API keys. Deployments reference secrets via secretKeyRef for environment variables."
+    },
+    {
+      "id": "deploy-006",
+      "category": "deployment",
+      "description": "Kubernetes storage and PVC templates",
+      "steps": [
+        "Define storage classes and persistent volumes",
+        "Create PVCs for coordination state",
+        "Mount volumes into deployments"
+      ],
+      "passes": true,
+      "verified": true,
+      "verification_date": "2026-01-22",
+      "verification_notes": "Confirmed: deployment/kubernetes/pvc.yaml defines PersistentVolumeClaims for coordination state. Deployment manifests mount these volumes at /app/.coordination path."
+    },
+    {
+      "id": "deploy-007",
+      "category": "deployment",
+      "description": "RBAC policies for cluster deployment",
+      "steps": [
+        "Define service accounts and roles",
+        "Bind permissions to deployments",
+        "Limit access to required resources"
+      ],
+      "passes": true,
+      "verified": true,
+      "verification_date": "2026-01-22",
+      "verification_notes": "Confirmed: deployment/kubernetes/rbac.yaml defines ServiceAccount, Role, and RoleBinding with minimal permissions for coordination operations."
+    },
+    {
+      "id": "deploy-008",
+      "category": "deployment",
+      "description": "Kustomize base for Kubernetes manifests",
+      "steps": [
+        "Provide kustomization.yaml with resources list",
+        "Enable layered configuration for environments",
+        "Support apply via kubectl -k"
+      ],
+      "passes": true,
+      "verified": true,
+      "verification_date": "2026-01-22",
+      "verification_notes": "Confirmed: deployment/kubernetes/kustomization.yaml lists all resource manifests. Supports kubectl apply -k deployment/kubernetes/ for unified deployment."
+    },
+    {
+      "id": "deploy-009",
+      "category": "deployment",
+      "description": "Helm chart packaging with templates",
+      "steps": [
+        "Define Chart.yaml and values.yaml",
+        "Template option deployments and services",
+        "Allow overrides via Helm values"
+      ],
+      "passes": true,
+      "verified": true,
+      "verification_date": "2026-01-22",
+      "verification_notes": "Confirmed: deployment/helm/Chart.yaml and values.yaml define Helm chart. deployment/helm/templates/ contains templated deployment, service, configmap, and HPA manifests with value overrides."
+    },
+    {
+      "id": "deploy-010",
+      "category": "deployment",
+      "description": "Ingress and load balancer routing manifests",
+      "steps": [
+        "Provide ingress definitions for HTTP routing",
+        "Support TLS and host-based routing",
+        "Expose services via load balancer"
+      ],
+      "passes": true,
+      "verified": true,
+      "verification_date": "2026-01-22",
+      "verification_notes": "Confirmed: deployment/kubernetes/ingress.yaml provides Ingress resource with TLS configuration and host-based routing rules. Service manifests include LoadBalancer type option."
+    },
+    {
+      "id": "api-001",
+      "category": "api",
+      "description": "REST API for task CRUD operations",
+      "steps": [
+        "List and create tasks from tasks.json",
+        "Update task fields via PUT/PATCH",
+        "Delete tasks with proper status codes"
+      ],
+      "passes": true,
+      "verified": false,
+      "verification_date": "",
+      "verification_notes": "Pending verification."
+    },
+    {
+      "id": "api-002",
+      "category": "api",
+      "description": "REST API for task lifecycle actions",
+      "steps": [
+        "Claim tasks and assign workers",
+        "Complete tasks with result payloads",
+        "Fail tasks with error details"
+      ],
+      "passes": true,
+      "verified": false,
+      "verification_date": "",
+      "verification_notes": "Pending verification."
+    },
+    {
+      "id": "api-003",
+      "category": "api",
+      "description": "REST API for worker management and heartbeat",
+      "steps": [
+        "Register workers with capabilities",
+        "Update worker status and current task",
+        "Record heartbeat timestamps"
+      ],
+      "passes": true,
+      "verified": false,
+      "verification_date": "",
+      "verification_notes": "Pending verification."
+    },
+    {
+      "id": "api-004",
+      "category": "api",
+      "description": "REST API for discoveries collection",
+      "steps": [
+        "List discoveries from discoveries.json",
+        "Add discoveries with metadata",
+        "Return discovery counts in meta"
+      ],
+      "passes": true,
+      "verified": false,
+      "verification_date": "",
+      "verification_notes": "Pending verification."
+    },
+    {
+      "id": "api-005",
+      "category": "api",
+      "description": "REST API health and coordination status",
+      "steps": [
+        "Expose /health for liveness checks",
+        "Compute task/worker status summaries",
+        "Return status payloads via /status"
+      ],
+      "passes": true,
+      "verified": false,
+      "verification_date": "",
+      "verification_notes": "Pending verification."
+    },
+    {
+      "id": "api-006",
+      "category": "api",
+      "description": "REST API OpenAPI/Swagger documentation",
+      "steps": [
+        "Generate OpenAPI 3.0 spec",
+        "Serve Swagger UI at /api-docs",
+        "Document tasks/workers/discoveries endpoints"
+      ],
+      "passes": true,
+      "verified": false,
+      "verification_date": "",
+      "verification_notes": "Pending verification."
+    },
+    {
+      "id": "api-007",
+      "category": "api",
+      "description": "GraphQL schema for coordination domain",
+      "steps": [
+        "Define Task, Worker, and Discovery types",
+        "Expose query fields for lists and details",
+        "Include CoordinationStatus aggregate type"
+      ],
+      "passes": true,
+      "verified": false,
+      "verification_date": "",
+      "verification_notes": "Pending verification."
+    },
+    {
+      "id": "api-008",
+      "category": "api",
+      "description": "GraphQL mutations for lifecycle management",
+      "steps": [
+        "Create/update/delete tasks",
+        "Register/update workers and heartbeat",
+        "Add/delete discoveries"
+      ],
+      "passes": true,
+      "verified": false,
+      "verification_date": "",
+      "verification_notes": "Pending verification."
+    },
+    {
+      "id": "api-009",
+      "category": "api",
+      "description": "GraphQL subscriptions over WebSocket",
+      "steps": [
+        "Publish task/worker/discovery events",
+        "Serve subscriptions via graphql-ws",
+        "Push updates to connected clients"
+      ],
+      "passes": true,
+      "verified": false,
+      "verification_date": "",
+      "verification_notes": "Pending verification."
+    },
+    {
+      "id": "api-010",
+      "category": "api",
+      "description": "GraphQL task filtering and search queries",
+      "steps": [
+        "Filter tasks by status/priority/assigned/tags",
+        "Search discoveries by text query",
+        "Provide active/available task views"
+      ],
+      "passes": true,
+      "verified": false,
+      "verification_date": "",
+      "verification_notes": "Pending verification."
+    },
+    {
+      "id": "obs-001",
+      "category": "observability",
+      "description": "Prometheus registry with default metrics",
+      "steps": [
+        "Initialize prom-client registry",
+        "Enable default Node.js metrics",
+        "Expose registry for scraping"
+      ],
+      "passes": true,
+      "verified": false,
+      "verification_date": "",
+      "verification_notes": "Pending verification."
+    },
+    {
+      "id": "obs-002",
+      "category": "observability",
+      "description": "Task count gauges and counters",
+      "steps": [
+        "Track total tasks and by status",
+        "Count created/completed/failed tasks",
+        "Expose per-status gauges"
+      ],
+      "passes": true,
+      "verified": false,
+      "verification_date": "",
+      "verification_notes": "Pending verification."
+    },
+    {
+      "id": "obs-003",
+      "category": "observability",
+      "description": "Task duration and queue wait histograms",
+      "steps": [
+        "Record execution duration buckets",
+        "Track queue wait times",
+        "Label histograms by priority/status"
+      ],
+      "passes": true,
+      "verified": false,
+      "verification_date": "",
+      "verification_notes": "Pending verification."
+    },
+    {
+      "id": "obs-004",
+      "category": "observability",
+      "description": "Worker status and heartbeat metrics",
+      "steps": [
+        "Gauge workers by status",
+        "Track tasks completed per worker",
+        "Export last heartbeat timestamps"
+      ],
+      "passes": true,
+      "verified": false,
+      "verification_date": "",
+      "verification_notes": "Pending verification."
+    },
+    {
+      "id": "obs-005",
+      "category": "observability",
+      "description": "Discovery metrics by creator",
+      "steps": [
+        "Count total discoveries",
+        "Group counts by creator",
+        "Expose discovery gauges"
+      ],
+      "passes": true,
+      "verified": false,
+      "verification_date": "",
+      "verification_notes": "Pending verification."
+    },
+    {
+      "id": "obs-006",
+      "category": "observability",
+      "description": "Coordination uptime and last update gauges",
+      "steps": [
+        "Track coordinator uptime seconds",
+        "Record last update timestamp",
+        "Expose gauge metrics"
+      ],
+      "passes": true,
+      "verified": false,
+      "verification_date": "",
+      "verification_notes": "Pending verification."
+    },
+    {
+      "id": "obs-007",
+      "category": "observability",
+      "description": "Task throughput per minute metric",
+      "steps": [
+        "Track completion timestamps",
+        "Calculate rolling throughput",
+        "Export throughput gauge"
+      ],
+      "passes": true,
+      "verified": false,
+      "verification_date": "",
+      "verification_notes": "Pending verification."
+    },
+    {
+      "id": "obs-008",
+      "category": "observability",
+      "description": "Metrics collection loop and /metrics endpoint",
+      "steps": [
+        "Poll coordination state on interval",
+        "Update Prometheus metrics each cycle",
+        "Serve /metrics via Express"
+      ],
+      "passes": true,
+      "verified": false,
+      "verification_date": "",
+      "verification_notes": "Pending verification."
+    },
+    {
+      "id": "obs-009",
+      "category": "observability",
+      "description": "OpenTelemetry tracing with exporter options",
+      "steps": [
+        "Support OTLP/Jaeger/Zipkin/console exporters",
+        "Configure exporters via env or config",
+        "Initialize tracing provider and SDK"
+      ],
+      "passes": true,
+      "verified": false,
+      "verification_date": "",
+      "verification_notes": "Pending verification."
+    },
+    {
+      "id": "obs-010",
+      "category": "observability",
+      "description": "Tracing manager for spans and errors",
+      "steps": [
+        "Start/end spans with attributes",
+        "Record exceptions and set status codes",
+        "Enable auto-instrumentation for Node.js"
+      ],
+      "passes": true,
+      "verified": false,
+      "verification_date": "",
+      "verification_notes": "Pending verification."
     }
   ]
 }

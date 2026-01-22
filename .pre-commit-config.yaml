@@ -1,0 +1,67 @@
+# Pre-commit hooks for multi-agent coordination system (ATOM-206)
+# Install: pip install pre-commit && pre-commit install
+# Run manually: pre-commit run --all-files
+
+repos:
+  # Python formatting and linting
+  - repo: https://github.com/psf/black
+    rev: 24.3.0
+    hooks:
+      - id: black
+        files: ^claude-multi-agent/option-(a|c)-.*\.py$
+        args: [--line-length=100]
+
+  - repo: https://github.com/pycqa/isort
+    rev: 5.13.2
+    hooks:
+      - id: isort
+        files: ^claude-multi-agent/option-(a|c)-.*\.py$
+        args: [--profile=black, --line-length=100]
+
+  - repo: https://github.com/pycqa/flake8
+    rev: 7.0.0
+    hooks:
+      - id: flake8
+        files: ^claude-multi-agent/option-(a|c)-.*\.py$
+        args: [--max-line-length=100, --ignore=E501,W503]
+
+  # TypeScript/JavaScript formatting
+  - repo: https://github.com/rbubley/mirrors-prettier
+    rev: v3.4.2
+    hooks:
+      - id: prettier
+        files: ^claude-multi-agent/option-b-.*\.(ts|js|json)$
+        exclude: node_modules/
+
+  # General file hygiene
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.5.0
+    hooks:
+      - id: trailing-whitespace
+        exclude: \.(md|txt)$
+      - id: end-of-file-fixer
+        exclude: \.(md|txt)$
+      - id: check-yaml
+        args: [--unsafe]  # Allow custom YAML tags
+      - id: check-json
+      - id: check-added-large-files
+        args: [--maxkb=500]
+      - id: check-merge-conflict
+      - id: detect-private-key
+
+  # Security checks
+  - repo: https://github.com/Yelp/detect-secrets
+    rev: v1.4.0
+    hooks:
+      - id: detect-secrets
+        args: [--baseline, .secrets.baseline]
+        exclude: package-lock.json|pnpm-lock.yaml
+
+# Configuration
+default_language_version:
+  python: python3.11
+  node: 20.11.0
+
+ci:
+  autofix_commit_msg: 'style: auto-format with pre-commit hooks'
+  autoupdate_commit_msg: 'chore: update pre-commit hooks'
