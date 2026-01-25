@@ -263,6 +263,33 @@ def load_tasks() -> dict:
         return json.loads(TASKS_FILE.read_text())
 
 
+def load_tasks_no_lock() -> dict:
+    """
+    Load the tasks file WITHOUT acquiring a lock.
+
+    IMPORTANT: Only use this inside a file_lock() context to avoid TOCTOU races.
+    This helper exists for atomic transactions that need to read and write
+    within a single lock context.
+    """
+    if not TASKS_FILE.exists():
+        return {"version": "1.0", "created_at": now_iso(), "last_updated": now_iso(), "tasks": []}
+    return json.loads(TASKS_FILE.read_text())
+
+
+def save_tasks_no_lock(data: dict):
+    """
+    Save the tasks file WITHOUT acquiring a lock.
+
+    IMPORTANT: Only use this inside a file_lock() context to avoid TOCTOU races.
+    This helper exists for atomic transactions that need to read and write
+    within a single lock context.
+
+    Note: Does NOT create backups - caller should handle backup if needed.
+    """
+    data["last_updated"] = now_iso()
+    TASKS_FILE.write_text(json.dumps(data, indent=2) + "\n")
+
+
 def cleanup_old_backups():
     """Remove old backups beyond the retention count."""
     backups = sorted(BACKUPS_DIR.glob("tasks_backup_*.json"))
@@ -2197,56 +2224,63 @@ def run_maintenance():
 
 def worker_claim(terminal_id: str) -> Optional[Task]:
     """
-    Claim an available task.
+    Claim an available task atomically.
 
     Implements feature adv-a-008: Worker capability matching.
     Only claims tasks that match the worker's declared capabilities.
     Also uses get_effective_priority() which includes priority boosts (adv-a-001).
+
+    RACE CONDITION FIX: The entire claim transaction (read, check, modify, write)
+    is now wrapped in a single file lock to prevent TOCTOU vulnerabilities where
+    two workers could both read the task as "available" and both attempt to claim it.
     """
-    data = load_tasks()
-    tasks = [Task.from_dict(t) for t in data["tasks"]]
-    done_ids = {t.id for t in tasks if t.status == "done"}
+    # Create backup before modifying state (adv-a-011: Automatic state backup)
+    if TASKS_FILE.exists():
+        create_backup()
 
-    # Find available task with satisfied dependencies and matching capabilities
-    available = [
-        t for t in tasks
-        if t.status == "available"
-        and all(dep in done_ids for dep in (t.dependencies or []))
-        and task_matches_capabilities(t, terminal_id)  # adv-a-008: capability matching
-    ]
+    # RACE CONDITION FIX: Hold the lock for the entire transaction
+    # This prevents two workers from both reading the task as "available"
+    # and both attempting to claim it simultaneously.
+    with file_lock(TASKS_FILE, exclusive=True):
+        data = load_tasks_no_lock()
+        tasks = [Task.from_dict(t) for t in data["tasks"]]
+        done_ids = {t.id for t in tasks if t.status == "done"}
 
-    if not available:
-        print("No available tasks with satisfied dependencies and matching capabilities.")
-        return None
+        # Find available task with satisfied dependencies and matching capabilities
+        available = [
+            t for t in tasks
+            if t.status == "available"
+            and all(dep in done_ids for dep in (t.dependencies or []))
+            and task_matches_capabilities(t, terminal_id)  # adv-a-008: capability matching
+        ]
 
-    # Pick highest priority (lowest number), using effective priority with boosts (adv-a-001)
-    task = min(available, key=lambda t: t.get_effective_priority())
+        if not available:
+            print("No available tasks with satisfied dependencies and matching capabilities.")
+            return None
 
-    # Claim it
-    for i, t in enumerate(data["tasks"]):
-        if t["id"] == task.id:
-            data["tasks"][i]["status"] = "claimed"
-            data["tasks"][i]["claimed_by"] = terminal_id
-            data["tasks"][i]["claimed_at"] = now_iso()
-            break
+        # Pick highest priority (lowest number), using effective priority with boosts (adv-a-001)
+        task = min(available, key=lambda t: t.get_effective_priority())
 
-    save_tasks(data)
+        # Claim it - no race possible since we hold the exclusive lock
+        for i, t in enumerate(data["tasks"]):
+            if t["id"] == task.id:
+                data["tasks"][i]["status"] = "claimed"
+                data["tasks"][i]["claimed_by"] = terminal_id
+                data["tasks"][i]["claimed_at"] = now_iso()
+                break
 
-    # Verify claim succeeded (re-read to check for race condition)
-    data = load_tasks()
-    for t in data["tasks"]:
-        if t["id"] == task.id:
-            if t.get("claimed_by") == terminal_id:
+        save_tasks_no_lock(data)
+
+        # Get the claimed task for return
+        for t in data["tasks"]:
+            if t["id"] == task.id:
                 log_action(terminal_id, "CLAIMED", task.id)
-                print(f"✓ Claimed task {task.id}")
+                print(f"Claimed task {task.id}")
                 print(f"  Description: {task.description}")
                 print(f"  Priority: {task.priority}")
                 if task.context:
                     print(f"  Context: {json.dumps(task.context, indent=4)}")
                 return Task.from_dict(t)
-            else:
-                print(f"✗ Race condition: task {task.id} was claimed by {t.get('claimed_by')}")
-                return worker_claim(terminal_id)  # Try again
 
     return None
 

@@ -18,17 +18,16 @@ from __future__ import annotations
 
 import json
 import uuid
-import copy
 from collections import defaultdict
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
-from typing import Optional, Any, TypeVar, Generic
+from typing import Optional, Any
 from pathlib import Path
 
 from pydantic import BaseModel, Field
 
-from .models import Task, TaskStatus
+from .models import Task
 
 
 # =============================================================================
@@ -449,7 +448,6 @@ class ResourceConstraintSolver:
         # Initialize
         self._schedule = {}
         resource_free_at: dict[str, float] = {name: 0.0 for name in self.resources}
-        task_free_at: dict[str, float] = {node_id: 0.0 for node_id in self.dag.nodes}
 
         # Sort tasks by slack (critical tasks first), then by earliest start
         ready = self.dag.get_roots()

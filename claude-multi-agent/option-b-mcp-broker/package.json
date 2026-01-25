@@ -11,7 +11,8 @@
     "watch": "tsc --watch",
     "test": "NODE_OPTIONS='--experimental-vm-modules' jest",
     "test:coverage": "NODE_OPTIONS='--experimental-vm-modules' jest --coverage",
-    "test:watch": "NODE_OPTIONS='--experimental-vm-modules' jest --watch"
+    "test:watch": "NODE_OPTIONS='--experimental-vm-modules' jest --watch",
+    "typecheck": "tsc --noEmit"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.0.0",

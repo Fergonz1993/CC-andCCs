@@ -5,7 +5,6 @@ This module integrates the shared reliability patterns into the Python
 orchestrator for enhanced fault tolerance and self-healing.
 """
 
-import asyncio
 import logging
 import os
 import socket
@@ -21,7 +20,6 @@ from reliability.circuit_breaker import (
     CircuitBreaker,
     CircuitBreakerConfig,
     CircuitBreakerRegistry,
-    CircuitState,
 )
 from reliability.retry import RetryWithJitter, RetryConfig
 from reliability.fallback import FallbackChain, CacheFallback, DefaultFallback, QueueFallback
@@ -38,10 +36,32 @@ from reliability.self_healing import (
     HealthStatus,
     RecoveryEvent,
     RecoveryAction,
-    WorkerHealthCheck,
 )
 
-from .models import Task, TaskStatus, CoordinationState
+from .models import TaskStatus, CoordinationState
+from .config import (
+    CIRCUIT_BREAKER_FAILURE_THRESHOLD,
+    CIRCUIT_BREAKER_SUCCESS_THRESHOLD,
+    CIRCUIT_BREAKER_TIMEOUT,
+    CIRCUIT_BREAKER_WINDOW,
+    MAIN_CB_FAILURE_THRESHOLD,
+    MAIN_CB_TIMEOUT,
+    RETRY_MAX_ATTEMPTS,
+    RETRY_INITIAL_DELAY,
+    RETRY_MAX_DELAY,
+    RETRY_JITTER_FACTOR,
+    CRITICAL_RETRY_MAX_ATTEMPTS,
+    CRITICAL_RETRY_INITIAL_DELAY,
+    CRITICAL_RETRY_MAX_DELAY,
+    CRITICAL_RETRY_JITTER_FACTOR,
+    CACHE_FALLBACK_MAX_AGE,
+    DEADLOCK_STALE_THRESHOLD,
+    DEADLOCK_CHECK_INTERVAL,
+    BACKUP_MAX_COUNT,
+    BACKUP_AUTO_INTERVAL,
+    LEADER_HEARTBEAT_INTERVAL,
+    LEADER_ELECTION_TIMEOUT,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -101,10 +121,10 @@ class OrchestratorReliability:
         # Registry for per-worker circuit breakers
         self.worker_registry = CircuitBreakerRegistry(
             default_config=CircuitBreakerConfig(
-                failure_threshold=3,
-                success_threshold=2,
-                timeout_seconds=30.0,
-                window_seconds=60.0,
+                failure_threshold=CIRCUIT_BREAKER_FAILURE_THRESHOLD,
+                success_threshold=CIRCUIT_BREAKER_SUCCESS_THRESHOLD,
+                timeout_seconds=CIRCUIT_BREAKER_TIMEOUT,
+                window_seconds=CIRCUIT_BREAKER_WINDOW,
             )
         )
 
@@ -112,8 +132,8 @@ class OrchestratorReliability:
         self.main_breaker = CircuitBreaker(
             name="orchestrator-main",
             config=CircuitBreakerConfig(
-                failure_threshold=5,
-                timeout_seconds=60.0,
+                failure_threshold=MAIN_CB_FAILURE_THRESHOLD,
+                timeout_seconds=MAIN_CB_TIMEOUT,
             ),
             on_open=self._on_circuit_open,
             on_close=self._on_circuit_close,
@@ -123,10 +143,10 @@ class OrchestratorReliability:
         """Initialize retry configuration."""
         self.retry = RetryWithJitter(
             config=RetryConfig(
-                max_attempts=3,
-                initial_delay_seconds=1.0,
-                max_delay_seconds=30.0,
-                jitter_factor=0.5,
+                max_attempts=RETRY_MAX_ATTEMPTS,
+                initial_delay_seconds=RETRY_INITIAL_DELAY,
+                max_delay_seconds=RETRY_MAX_DELAY,
+                jitter_factor=RETRY_JITTER_FACTOR,
             ),
             on_retry=self._on_retry,
         )
@@ -134,25 +154,25 @@ class OrchestratorReliability:
         # Aggressive retry for critical operations
         self.critical_retry = RetryWithJitter(
             config=RetryConfig(
-                max_attempts=5,
-                initial_delay_seconds=0.5,
-                max_delay_seconds=10.0,
-                jitter_factor=0.3,
+                max_attempts=CRITICAL_RETRY_MAX_ATTEMPTS,
+                initial_delay_seconds=CRITICAL_RETRY_INITIAL_DELAY,
+                max_delay_seconds=CRITICAL_RETRY_MAX_DELAY,
+                jitter_factor=CRITICAL_RETRY_JITTER_FACTOR,
             ),
         )
 
     def _init_fallback(self) -> None:
         """Initialize fallback chain."""
         self.fallback = FallbackChain()
-        self.fallback.add(CacheFallback(max_age_seconds=300))
+        self.fallback.add(CacheFallback(max_age_seconds=CACHE_FALLBACK_MAX_AGE))
         self.fallback.add(QueueFallback())
         self.fallback.add(DefaultFallback(default_value=None))
 
     def _init_deadlock_detection(self) -> None:
         """Initialize deadlock detection."""
         self.deadlock_detector = DeadlockDetector(
-            stale_threshold_seconds=300.0,
-            check_interval_seconds=30.0,
+            stale_threshold_seconds=DEADLOCK_STALE_THRESHOLD,
+            check_interval_seconds=DEADLOCK_CHECK_INTERVAL,
             on_deadlock=self._handle_deadlock,
         )
 
@@ -173,8 +193,8 @@ class OrchestratorReliability:
         self.backup_manager = BackupManager(
             config=BackupConfig(
                 backup_dir=str(self.coordination_dir / "backups"),
-                max_backups=10,
-                auto_backup_interval=300.0,
+                max_backups=BACKUP_MAX_COUNT,
+                auto_backup_interval=BACKUP_AUTO_INTERVAL,
                 compress=True,
             ),
             on_backup=lambda info: logger.info(f"Created backup: {info.id}"),
@@ -185,8 +205,8 @@ class OrchestratorReliability:
         self.leader_election = LeaderElection(
             node_id=self.node_id,
             config=LeaderElectionConfig(
-                heartbeat_interval=5.0,
-                election_timeout=15.0,
+                heartbeat_interval=LEADER_HEARTBEAT_INTERVAL,
+                election_timeout=LEADER_ELECTION_TIMEOUT,
                 lease_duration=30.0,
                 lock_file_path=str(self.coordination_dir / "leader.lock"),
                 state_file_path=str(self.coordination_dir / "leader-state.json"),

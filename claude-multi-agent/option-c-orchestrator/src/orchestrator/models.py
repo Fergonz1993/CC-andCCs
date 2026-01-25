@@ -10,6 +10,8 @@ from typing import Optional, List, Dict, Any
 from pydantic import BaseModel, Field
 import uuid
 
+from .config import DEFAULT_MODEL
+
 
 class TaskStatus(str, Enum):
     """Task lifecycle states."""
@@ -105,15 +107,41 @@ class Task(BaseModel):
         self.result = TaskResult(output="", error=error)
         self.completed_at = datetime.now()
 
-    def reset(self) -> None:
-        """Reset task for retry."""
-        if self.attempts < self.max_attempts:
-            self.status = TaskStatus.AVAILABLE
-            self.claimed_by = None
-            self.claimed_at = None
-            self.started_at = None
-            self.completed_at = None
-            self.result = None
+    def reset(self, force: bool = False) -> bool:
+        """
+        Reset task for retry.
+
+        Only allows reset from FAILED or IN_PROGRESS states (for timeouts).
+        Returns True if reset was successful, False if rejected.
+
+        Args:
+            force: If True, allow reset from any non-DONE state (use with caution)
+        """
+        # Check if retry attempts remain
+        if self.attempts >= self.max_attempts:
+            return False
+
+        # Validate current state - only reset from appropriate states
+        # CLAIMED is included because a worker may die after claiming
+        valid_reset_states = {TaskStatus.FAILED, TaskStatus.IN_PROGRESS, TaskStatus.CLAIMED}
+        if force:
+            valid_reset_states.add(TaskStatus.BLOCKED)
+
+        if self.status not in valid_reset_states:
+            return False
+
+        # Cannot reset a completed task
+        if self.status == TaskStatus.DONE:
+            return False
+
+        # Perform atomic-ish reset (all fields updated together)
+        self.status = TaskStatus.AVAILABLE
+        self.claimed_by = None
+        self.claimed_at = None
+        self.started_at = None
+        self.completed_at = None
+        self.result = None
+        return True
 
 
 class AgentMetrics(BaseModel):
@@ -143,7 +171,7 @@ class Agent(BaseModel):
 
     # Configuration
     working_directory: str = Field(default=".")
-    model: str = Field(default="claude-sonnet-4-20250514")
+    model: str = Field(default=DEFAULT_MODEL)
     max_concurrent_tasks: int = Field(default=1)
 
 

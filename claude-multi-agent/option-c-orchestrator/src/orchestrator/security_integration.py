@@ -27,7 +27,7 @@ SHARED_SECURITY_PATH = Path(__file__).parent.parent.parent.parent.parent / "shar
 if str(SHARED_SECURITY_PATH.parent) not in sys.path:
     sys.path.insert(0, str(SHARED_SECURITY_PATH.parent))
 
-from security import (
+from security import (  # noqa: E402
     # Authentication (sec-001, sec-002, sec-003)
     APIKeyManager,
     JWTManager,
@@ -53,16 +53,14 @@ from security import (
     RotationSchedule,
 )
 
-from .async_orchestrator import Orchestrator as AsyncOrchestrator
-from .models import (
+from .async_orchestrator import Orchestrator as AsyncOrchestrator  # noqa: E402
+from .models import (  # noqa: E402
     Task,
-    TaskStatus,
     TaskResult,
-    TaskContext,
     Discovery,
     CoordinationState,
-    AgentRole,
 )
+from .config import DEFAULT_MODEL, DEFAULT_MAX_WORKERS, DEFAULT_TASK_TIMEOUT  # noqa: E402
 
 
 class SecurityConfig:
@@ -120,9 +118,9 @@ class SecureOrchestrator:
     def __init__(
         self,
         working_directory: str = ".",
-        max_workers: int = 3,
-        model: str = "claude-sonnet-4-20250514",
-        task_timeout: int = 600,
+        max_workers: int = DEFAULT_MAX_WORKERS,
+        model: str = DEFAULT_MODEL,
+        task_timeout: int = DEFAULT_TASK_TIMEOUT,
         security_config: Optional[SecurityConfig] = None,
         on_task_complete: Optional[Callable[[Task], None]] = None,
         on_discovery: Optional[Callable[[Discovery], None]] = None,
@@ -706,7 +704,7 @@ class SecureOrchestrator:
 
         # Regenerate keys for all registered agents
         for agent_id in list(self._sessions.keys()):
-            new_key = self._api_key_manager.create_key(agent_id)
+            self._api_key_manager.create_key(agent_id)
             self._sessions[agent_id]["api_key_rotated"] = datetime.now()
 
         return True

@@ -32,6 +32,10 @@ from .audit import (
     AuditLogger,
     AuditEvent,
     AuditEventType,
+    AuditLevel,
+    audit_task_operation,
+    get_audit_logger,
+    reset_audit_logger,
 )
 from .sanitization import (
     InputSanitizer,
@@ -64,6 +68,10 @@ __all__ = [
     "AuditLogger",
     "AuditEvent",
     "AuditEventType",
+    "AuditLevel",
+    "audit_task_operation",
+    "get_audit_logger",
+    "reset_audit_logger",
     # Sanitization
     "InputSanitizer",
     "SanitizationError",

@@ -8,20 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
-- Comprehensive documentation suite
-  - Architecture Decision Records (ADRs)
-  - OpenAPI specification
-  - User guide with examples
-  - Developer setup guide
-  - Troubleshooting guide
-  - Performance tuning guide
-  - Security best practices guide
-  - Migration guide
-  - Code examples
-  - Video tutorial scripts
-  - FAQ section
-  - Glossary of terms
-  - Contributing guidelines
+- None
 
 ### Changed
 - None
@@ -37,6 +24,69 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Security
 - None
+
+---
+
+## [2.1.0] - 2026-01-25
+
+### Added
+
+#### Test Infrastructure (P0)
+- ATOM-001: Hypothesis property-based testing for Option C
+- ATOM-002: pip-audit for vulnerability scanning in Option C
+- ATOM-003: npm audit integration for Option B
+- ATOM-004: Fixed ts-jest TS151002 warning with isolatedModules
+- ATOM-005: Added .python-version for pyenv consistency
+- ATOM-006: Hybrid orchestrator mode test (coordination_dir vs working_directory)
+- ATOM-007: File-based orchestrator persistence tests (agents.json, discoveries.json)
+- ATOM-008: Explicit error messages for missing coordination files
+- ATOM-009: AgentConfig defaults and heartbeat thread teardown tests
+- ATOM-010: Smoke test for async orchestrator as CLI default
+
+#### Reliability & Observability (P1)
+- ATOM-101: Ralph test gate summary logging to .coordination/logs
+- ATOM-102: Coverage reports for pytest and jest
+- ATOM-103: Lint/typecheck commands in ralph_config.json
+- ATOM-104: Task queue size and throughput metrics export
+- ATOM-105: Retry/backoff policy unit tests
+- ATOM-106: Dependency enforcement integration tests
+- ATOM-107: Duplicate task ID validation in FileOrchestrator
+- ATOM-108: Schema validation for tasks.json (detect malformed entries)
+- ATOM-109: Structured JSON logging for orchestrator events
+- ATOM-110: Performance benchmarks for task claim/complete cycles
+- ATOM-111: Agent capability matching tests
+- ATOM-112: CLI flag for JSON export of ralph test gate results
+
+#### Developer Experience (P2)
+- ATOM-201: .gitignore entries for .codex/ and vercel-agent-skills/
+- ATOM-202: Hybrid orchestrator documentation in README
+- ATOM-203: Quickstart section for ralph_config.json and ralph_loop.py
+- ATOM-204: Sample CI workflow for ralph test gate (.github/workflows/ralph-test-gate.yml)
+- ATOM-205: Lint rules for test_doc_generator warnings
+- ATOM-206: Pre-commit hook configuration for formatting
+- ATOM-207: Property-based testing documentation
+- ATOM-208: Dev script for test catalog regeneration
+- ATOM-209: Script for cleaning coordination artifacts
+- ATOM-210: Changelog template for v2.1 iterations
+
+#### Documentation
+- Comprehensive documentation suite including:
+  - Architecture Decision Records (ADRs)
+  - OpenAPI specification
+  - User guide with examples
+  - Developer setup guide
+  - Troubleshooting guide
+  - Performance tuning guide
+  - Security best practices guide
+  - Migration guide
+  - Code examples
+
+### Changed
+- Orchestrator now selects backend based on initialization parameters
+- pyproject.toml updated with pytest collection filters
+
+### Fixed
+- Pytest collection warnings from TestCase/TestModule dataclasses
 
 ---
 

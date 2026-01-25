@@ -280,3 +280,188 @@ class TestEdgeCases:
 
         # Verify dependency is recorded
         assert task_a in task_b_data["dependencies"]
+
+
+class TestDependencyEnforcement:
+    """Integration tests for dependency enforcement across task graphs (ATOM-106)."""
+
+    def test_diamond_dependency_graph(self, option_a_module, temp_workspace):
+        """int-dep-001: Diamond DAG is correctly enforced."""
+        coord = option_a_module
+        coord.leader_init("Diamond dependency test")
+
+        # Create diamond: A -> (B, C) -> D
+        #     A
+        #    / \
+        #   B   C
+        #    \ /
+        #     D
+        task_a = coord.leader_add_task("Task A", priority=1)
+        task_b = coord.leader_add_task("Task B", priority=2, dependencies=[task_a])
+        task_c = coord.leader_add_task("Task C", priority=2, dependencies=[task_a])
+        task_d = coord.leader_add_task("Task D", priority=3, dependencies=[task_b, task_c])
+
+        # Only A should be initially claimable
+        claimed = coord.worker_claim("worker-1")
+        assert claimed.id == task_a
+
+        # Complete A
+        coord.worker_complete("worker-1", task_a, "Done A")
+
+        # Now B and C should both be claimable (parallel)
+        claimed1 = coord.worker_claim("worker-1")
+        claimed2 = coord.worker_claim("worker-2")
+
+        assert {claimed1.id, claimed2.id} == {task_b, task_c}
+
+        # D should not yet be claimable
+        claimed3 = coord.worker_claim("worker-3")
+        assert claimed3 is None  # No more tasks available (D is blocked)
+
+        # Complete B and C
+        coord.worker_complete("worker-1", task_b, "Done B")
+        coord.worker_complete("worker-2", task_c, "Done C")
+
+        # Now D should be claimable
+        claimed4 = coord.worker_claim("worker-1")
+        assert claimed4.id == task_d
+
+    def test_multiple_dependency_chains(self, option_a_module, temp_workspace):
+        """int-dep-002: Multiple parallel dependency chains work correctly."""
+        coord = option_a_module
+        coord.leader_init("Parallel chains test")
+
+        # Chain 1: A1 -> B1 -> C1
+        a1 = coord.leader_add_task("A1", priority=1)
+        b1 = coord.leader_add_task("B1", priority=2, dependencies=[a1])
+        c1 = coord.leader_add_task("C1", priority=3, dependencies=[b1])
+
+        # Chain 2: A2 -> B2 -> C2
+        a2 = coord.leader_add_task("A2", priority=1)
+        b2 = coord.leader_add_task("B2", priority=2, dependencies=[a2])
+        c2 = coord.leader_add_task("C2", priority=3, dependencies=[b2])
+
+        # Both A1 and A2 should be claimable immediately
+        claimed1 = coord.worker_claim("worker-1")
+        claimed2 = coord.worker_claim("worker-2")
+        assert {claimed1.id, claimed2.id} == {a1, a2}
+
+        # Complete both A tasks
+        coord.worker_complete("worker-1", a1, "Done A1")
+        coord.worker_complete("worker-2", a2, "Done A2")
+
+        # Both B1 and B2 should be claimable
+        claimed3 = coord.worker_claim("worker-1")
+        claimed4 = coord.worker_claim("worker-2")
+        assert {claimed3.id, claimed4.id} == {b1, b2}
+
+    def test_deep_dependency_chain(self, option_a_module, temp_workspace):
+        """int-dep-003: Deep dependency chain (10 levels) is correctly enforced."""
+        coord = option_a_module
+        coord.leader_init("Deep chain test")
+
+        # Create chain of 10 tasks
+        task_ids = []
+        prev_id = None
+        for i in range(10):
+            deps = [prev_id] if prev_id else []
+            task_id = coord.leader_add_task(f"Task {i}", priority=i + 1, dependencies=deps)
+            task_ids.append(task_id)
+            prev_id = task_id
+
+        # Only first task should be claimable
+        claimed = coord.worker_claim("worker-1")
+        assert claimed.id == task_ids[0]
+
+        # Walk through the entire chain
+        for i, expected_id in enumerate(task_ids):
+            if i > 0:
+                claimed = coord.worker_claim("worker-1")
+                assert claimed.id == expected_id
+            coord.worker_complete("worker-1", expected_id, f"Done {i}")
+
+        # All tasks should now be done
+        data = coord.load_tasks()
+        for task in data["tasks"]:
+            assert task["status"] == "done"
+
+    def test_dependency_with_failed_task(self, option_a_module, temp_workspace):
+        """int-dep-004: Dependencies respect failed task states."""
+        coord = option_a_module
+        coord.leader_init("Failed dependency test")
+
+        task_a = coord.leader_add_task("Task A", priority=1)
+        task_b = coord.leader_add_task("Task B", priority=2, dependencies=[task_a])
+
+        # Claim and fail Task A
+        coord.worker_claim("worker-1")
+        coord.worker_fail("worker-1", task_a, "Task A failed")
+
+        # Task B should not be claimable (dependency not "done")
+        claimed = coord.worker_claim("worker-2")
+        assert claimed is None
+
+    def test_fan_out_dependency(self, option_a_module, temp_workspace):
+        """int-dep-005: Single task enabling multiple downstream tasks (fan-out)."""
+        coord = option_a_module
+        coord.leader_init("Fan-out test")
+
+        # Create fan-out: A -> (B, C, D, E)
+        task_a = coord.leader_add_task("Task A", priority=1)
+        task_b = coord.leader_add_task("Task B", priority=2, dependencies=[task_a])
+        task_c = coord.leader_add_task("Task C", priority=2, dependencies=[task_a])
+        task_d = coord.leader_add_task("Task D", priority=2, dependencies=[task_a])
+        task_e = coord.leader_add_task("Task E", priority=2, dependencies=[task_a])
+
+        # Only A claimable initially
+        claimed = coord.worker_claim("worker-1")
+        assert claimed.id == task_a
+
+        # Complete A
+        coord.worker_complete("worker-1", task_a, "Done A")
+
+        # All of B, C, D, E should now be claimable
+        claimed_ids = set()
+        for i in range(4):
+            claimed = coord.worker_claim(f"worker-{i}")
+            if claimed:
+                claimed_ids.add(claimed.id)
+
+        assert claimed_ids == {task_b, task_c, task_d, task_e}
+
+    def test_fan_in_dependency(self, option_a_module, temp_workspace):
+        """int-dep-006: Multiple tasks converging to single downstream (fan-in)."""
+        coord = option_a_module
+        coord.leader_init("Fan-in test")
+
+        # Create fan-in: (A, B, C, D) -> E
+        task_a = coord.leader_add_task("Task A", priority=1)
+        task_b = coord.leader_add_task("Task B", priority=1)
+        task_c = coord.leader_add_task("Task C", priority=1)
+        task_d = coord.leader_add_task("Task D", priority=1)
+        task_e = coord.leader_add_task("Task E", priority=2, dependencies=[task_a, task_b, task_c, task_d])
+
+        # All A-D claimable initially
+        claimed_ids = set()
+        for i in range(4):
+            claimed = coord.worker_claim(f"worker-{i}")
+            if claimed:
+                claimed_ids.add(claimed.id)
+
+        assert claimed_ids == {task_a, task_b, task_c, task_d}
+
+        # Complete 3 of 4 tasks
+        coord.worker_complete("worker-0", task_a, "Done A")
+        coord.worker_complete("worker-1", task_b, "Done B")
+        coord.worker_complete("worker-2", task_c, "Done C")
+
+        # E should still not be claimable (D not done)
+        new_worker = coord.worker_claim("worker-5")
+        assert new_worker is None
+
+        # Complete D
+        coord.worker_complete("worker-3", task_d, "Done D")
+
+        # Now E should be claimable
+        claimed_e = coord.worker_claim("worker-5")
+        assert claimed_e.id == task_e

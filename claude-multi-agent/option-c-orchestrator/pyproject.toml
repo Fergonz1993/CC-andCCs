@@ -21,6 +21,7 @@ dependencies = [
 dev = [
     "pytest>=7.0.0",
     "pytest-asyncio>=0.21.0",
+    "pytest-cov>=4.0.0",
     "hypothesis>=6.0.0",
     "pip-audit>=2.7.0",
 ]
@@ -36,3 +37,30 @@ packages = ["src/orchestrator"]
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
+# ATOM-205: Explicit test collection patterns to avoid warnings from
+# dataclasses like TestCase/TestModule in test_doc_generator.py
+python_classes = ["Test*"]
+python_files = ["test_*.py"]
+python_functions = ["test_*"]
+# Ignore dataclass collection warnings from test_doc_generator
+filterwarnings = [
+    "ignore::pytest.PytestCollectionWarning",
+]
+
+[tool.coverage.run]
+source = ["src/orchestrator"]
+omit = ["*/tests/*", "*/__pycache__/*"]
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "if TYPE_CHECKING:",
+    "raise NotImplementedError",
+]
+fail_under = 70
+
+[tool.coverage.html]
+directory = "artifacts/coverage"
+
+[tool.coverage.xml]
+output = "artifacts/coverage.xml"

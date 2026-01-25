@@ -18,10 +18,7 @@ import asyncio
 import json
 import os
 import tempfile
-import time
 import uuid
-import signal
-from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from enum import Enum
@@ -37,12 +34,10 @@ from typing import (
     TYPE_CHECKING,
 )
 
-from pydantic import BaseModel, Field
 from rich.console import Console
 
 if TYPE_CHECKING:
-    from .agent import ClaudeCodeAgent, AgentPool
-    from .models import Task
+    from .agent import AgentPool
 
 console = Console()
 
@@ -381,7 +376,7 @@ class HealthMonitor:
                 await agent.stop()
 
             # Start a new agent with the same ID
-            new_agent = await self.pool.start_worker(worker_id)
+            await self.pool.start_worker(worker_id)
 
             record.restart_count += 1
             record.last_restart = datetime.now()

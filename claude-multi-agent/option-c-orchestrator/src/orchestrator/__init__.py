@@ -60,6 +60,13 @@ from .agent import ClaudeCodeAgent
 from .orchestrator import Orchestrator
 from .async_orchestrator import Orchestrator as AsyncOrchestrator
 from .cli import app
+from .config import DEFAULT_MODEL, DEFAULT_MAX_WORKERS, DEFAULT_TASK_TIMEOUT
+from .metrics import MetricsCollector, QueueMetrics, TaskMetrics
+from .logging_config import (
+    JSONFormatter,
+    OrchestratorLogger,
+    configure_structured_logging,
+)
 
 # Advanced features
 from .advanced import (
@@ -148,6 +155,18 @@ __all__ = [
     "Orchestrator",
     "AsyncOrchestrator",
     "app",
+    # Configuration
+    "DEFAULT_MODEL",
+    "DEFAULT_MAX_WORKERS",
+    "DEFAULT_TASK_TIMEOUT",
+    # Metrics (ATOM-104)
+    "MetricsCollector",
+    "QueueMetrics",
+    "TaskMetrics",
+    # Structured logging (ATOM-109)
+    "JSONFormatter",
+    "OrchestratorLogger",
+    "configure_structured_logging",
     # adv-c-001: Adaptive worker scaling
     "ScalingConfig",
     "AdaptiveScaler",

@@ -16,7 +16,13 @@ This module provides intelligent algorithms and heuristics for:
 No external ML libraries required - uses statistical methods and heuristics.
 """
 
-from .prioritization import TaskPrioritizer, PriorityFactors
+from .prioritization import TaskPrioritizer, PriorityFactors, PrioritySuggestion
+from .adaptive_prioritization import (
+    AdaptivePrioritizer,
+    AdaptiveWeights,
+    ExecutionOutcome,
+    create_adaptive_prioritizer,
+)
 from .decomposition import TaskDecomposer, DecompositionSuggestion
 from .assignment import SmartAssigner, WorkerProfile
 from .anomaly import AnomalyDetector, AnomalyAlert
@@ -31,6 +37,12 @@ __all__ = [
     # Prioritization
     "TaskPrioritizer",
     "PriorityFactors",
+    "PrioritySuggestion",
+    # Adaptive Prioritization
+    "AdaptivePrioritizer",
+    "AdaptiveWeights",
+    "ExecutionOutcome",
+    "create_adaptive_prioritizer",
     # Decomposition
     "TaskDecomposer",
     "DecompositionSuggestion",

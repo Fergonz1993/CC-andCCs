@@ -14,6 +14,7 @@ processes without shell injection risks (equivalent to execFile in Node.js).
 
 import asyncio
 import json
+import logging
 import os
 import threading
 import time
@@ -23,6 +24,9 @@ from typing import Optional, Callable, AsyncIterator, Any
 from pathlib import Path
 
 from .models import Agent as AgentModel, AgentRole, Task, TaskResult
+from .config import DEFAULT_MODEL
+
+logger = logging.getLogger(__name__)
 
 
 class ClaudeCodeAgent:
@@ -38,7 +42,7 @@ class ClaudeCodeAgent:
         agent_id: str,
         role: AgentRole = AgentRole.WORKER,
         working_directory: str = ".",
-        model: str = "claude-sonnet-4-20250514",
+        model: str = DEFAULT_MODEL,
         on_output: Optional[Callable[[str], None]] = None,
         on_error: Optional[Callable[[str], None]] = None,
     ):
@@ -126,12 +130,24 @@ class ClaudeCodeAgent:
             return True
 
         except FileNotFoundError:
+            logger.error("Claude Code CLI not found for agent %s", self.agent_id)
             if self.on_error:
                 self.on_error(
                     "Claude Code CLI not found. Install with: npm install -g @anthropic-ai/claude-code"
                 )
             return False
         except Exception as e:
+            # Clean up any partially started process to prevent leaks (RL-1 fix)
+            logger.error("Failed to start agent %s: %s", self.agent_id, e)
+            if self._process is not None:
+                try:
+                    self._process.kill()
+                    await self._process.wait()
+                except Exception as cleanup_error:
+                    logger.warning("Error during cleanup: %s", cleanup_error)
+                finally:
+                    self._process = None
+            self._is_running = False
             if self.on_error:
                 self.on_error(f"Failed to start Claude Code: {e}")
             return False
@@ -376,7 +392,13 @@ class ClaudeCodeAgent:
                 if self.on_output:
                     self.on_output(decoded)
 
-            except Exception:
+            except asyncio.CancelledError:
+                # Task was cancelled, exit cleanly
+                logger.debug("Response reading cancelled for agent %s", self.agent_id)
+                break
+            except Exception as e:
+                # Log the exception before breaking (EH-1 fix)
+                logger.warning("Error reading response for agent %s: %s", self.agent_id, e)
                 break
 
         return "\n".join(response_parts)
@@ -432,18 +454,28 @@ class ClaudeCodeAgent:
         if not self._process or not self._process.stderr:
             return
 
-        while self._is_running:
-            try:
-                line = await self._process.stderr.readline()
-                if not line:
+        try:
+            while self._is_running:
+                try:
+                    line = await self._process.stderr.readline()
+                    if not line:
+                        break
+
+                    decoded = line.decode("utf-8").strip()
+                    if decoded and self.on_error:
+                        self.on_error(f"[{self.agent_id}] {decoded}")
+
+                except asyncio.CancelledError:
+                    # Task was cancelled, exit cleanly
+                    logger.debug("Stderr reader cancelled for agent %s", self.agent_id)
                     break
-
-                decoded = line.decode("utf-8").strip()
-                if decoded and self.on_error:
-                    self.on_error(f"[{self.agent_id}] {decoded}")
-
-            except Exception:
-                break
+                except Exception as e:
+                    # Log the exception before breaking (EH-1, RL-2 fix)
+                    logger.warning("Error reading stderr for agent %s: %s", self.agent_id, e)
+                    break
+        finally:
+            # Ensure we mark completion for cleanup tracking (RL-2 fix)
+            logger.debug("Stderr reader finished for agent %s", self.agent_id)
 
 
 class AgentPool:
@@ -457,7 +489,7 @@ class AgentPool:
         self,
         working_directory: str = ".",
         max_workers: int = 3,
-        model: str = "claude-sonnet-4-20250514",
+        model: str = DEFAULT_MODEL,
     ):
         self.working_directory = working_directory
         self.max_workers = max_workers
@@ -465,6 +497,7 @@ class AgentPool:
 
         self._agents: dict[str, ClaudeCodeAgent] = {}
         self._leader: Optional[ClaudeCodeAgent] = None
+        self._assignment_lock = asyncio.Lock()  # RC-3 fix: lock for atomic worker assignment
 
     async def start_leader(self) -> ClaudeCodeAgent:
         """Start the leader agent."""
@@ -517,11 +550,34 @@ class AgentPool:
         self._agents.clear()
 
     def get_idle_worker(self) -> Optional[ClaudeCodeAgent]:
-        """Get an idle worker agent."""
+        """Get an idle worker agent (non-atomic, use claim_idle_worker for safety)."""
         for agent in self._agents.values():
             if agent.is_running and agent._current_task is None:
                 return agent
         return None
+
+    async def claim_idle_worker(self, task_id: str) -> Optional[ClaudeCodeAgent]:
+        """
+        Atomically claim an idle worker for a task.
+
+        This fixes RC-3: race condition where the same worker could be
+        assigned to multiple tasks between the idle check and task assignment.
+
+        Returns the claimed worker, or None if no idle workers available.
+        """
+        async with self._assignment_lock:
+            for agent in self._agents.values():
+                if agent.is_running and agent._current_task is None:
+                    # Atomically assign the task to this worker
+                    agent._current_task = task_id
+                    return agent
+            return None
+
+    async def release_worker(self, agent_id: str) -> None:
+        """Release a worker after task completion."""
+        async with self._assignment_lock:
+            if agent_id in self._agents:
+                self._agents[agent_id]._current_task = None
 
     def get_all_agents(self) -> list[ClaudeCodeAgent]:
         """Get all agents including leader."""

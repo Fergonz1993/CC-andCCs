@@ -27,6 +27,10 @@ Cross-cutting utilities used by all options:
 - `shared/ai/` - Task prioritization, decomposition, anomaly detection
 - `shared/cross_option/` - Migration, sync, unified CLI, plugins
 
+### Feature Tracking
+
+The project tracks 180+ features in `feature_list.json`. Each feature has verification metadata linking to specific code files. Check `AGENTS.md` for current verification status.
+
 ## Build & Test Commands
 
 ### Option A: File-Based (Python)
@@ -64,6 +68,9 @@ npm run test:watch                   # Watch mode
 
 # Type checking
 npx tsc --noEmit
+
+# Security audit
+npm audit
 ```
 
 MCP config for `~/.claude/mcp.json`:
@@ -98,6 +105,9 @@ pytest                                    # All tests
 pytest tests/test_orchestrator_unit.py    # Single file
 pytest -k "test_task_claim"               # Single test by name
 pytest tests/test_property_based.py       # Property-based tests (hypothesis)
+
+# Security audit
+pip-audit                                 # Check for vulnerable dependencies
 ```
 
 ### Integration Tests
@@ -132,7 +142,9 @@ Task schema requires: `id`, `description`, `status`, `priority` (1=highest). Dep
 | File-based CLI | `option-a-file-based/coordination.py` |
 | MCP server | `option-b-mcp-broker/src/index.ts` |
 | Orchestrator core | `option-c-orchestrator/src/orchestrator/orchestrator.py` |
+| Async orchestrator | `option-c-orchestrator/src/orchestrator/async_orchestrator.py` |
 | Task/Agent models | `option-c-orchestrator/src/orchestrator/models.py` |
+| Configuration | `option-c-orchestrator/src/orchestrator/config.py` |
 | CLI interface | `option-c-orchestrator/src/orchestrator/cli.py` |
 | Agent subprocess | `option-c-orchestrator/src/orchestrator/agent.py` |
 
@@ -140,6 +152,14 @@ Task schema requires: `id`, `description`, `status`, `priority` (1=highest). Dep
 
 - **Option A**: Workers must re-read `tasks.json` after claiming to verify success
 - **Options B & C**: Built-in atomic operations
+
+## CI/CD
+
+GitHub Actions workflow in `.github/workflows/test.yml` runs tests across all three options. The workflow validates:
+- Option A Python tests
+- Option B TypeScript build and Jest tests
+- Option C pytest suite including property-based tests
+- Security audits (pip-audit, npm audit)
 
 ---
 
@@ -169,3 +189,19 @@ cat claude-progress.txt      # Check current progress
 6. Update `claude-progress.txt`, commit
 
 See `CODING_AGENT.md` for detailed session instructions.
+
+### Quick Verification Commands
+```bash
+# Option C import check
+cd claude-multi-agent/option-c-orchestrator && source .venv/bin/activate
+python -c "from orchestrator import Orchestrator; from orchestrator.models import Task; print('OK')"
+
+# Option B build check
+cd claude-multi-agent/option-b-mcp-broker && ls dist/index.js
+
+# Option A CLI check
+cd claude-multi-agent/option-a-file-based && python coordination.py --help
+
+# Feature count
+cat feature_list.json | python3 -c "import json,sys; d=json.load(sys.stdin); passing=sum(1 for f in d['features'] if f['passes']); print(f'{passing}/{len(d[\"features\"])} passing')"
+```

@@ -222,6 +222,35 @@ Full programmatic control over multiple Claude Code instances.
 - Progress monitoring
 - State persistence
 
+### Hybrid Orchestrator Behavior
+
+Option C provides a **hybrid orchestrator** that automatically selects the appropriate backend based on how you initialize it:
+
+| Initialization | Backend | Mode | Best For |
+|----------------|---------|------|----------|
+| `Orchestrator(coordination_dir="./path")` | `FileOrchestrator` | Sync, file-backed | Tests, simple workflows, debugging |
+| `Orchestrator(working_directory="./path")` | `AsyncOrchestrator` | Async, memory-based | Production, multi-worker scenarios |
+
+**File-based mode** persists all state to the coordination directory:
+- `tasks.json` - Task queue with atomic file locking
+- `agents.json` - Registered agents and heartbeats
+- `discoveries.json` - Shared findings between agents
+- `metrics/` - Queue size and throughput data
+
+**Async mode** keeps state in memory and is optimized for spawning/managing Claude Code subprocesses with concurrent task execution.
+
+```python
+# File-based (synchronous, for tests)
+orch = Orchestrator(coordination_dir="./.coordination", goal="Test task")
+orch.add_task("Task 1", priority=1)
+task = orch.claim_task("task-xxx", "agent-1")
+
+# Async (production)
+orch = Orchestrator(working_directory="./project", max_workers=3)
+await orch.initialize("Build feature X")
+result = await orch.run_with_leader_planning()
+```
+
 ### Installation
 
 ```bash
@@ -347,6 +376,122 @@ Use the file locking in `coordination.py` or switch to Option B/C.
 
 ### Timeout errors
 Increase `task_timeout` for complex tasks.
+
+---
+
+---
+
+## Property-Based Testing
+
+Option C includes property-based tests using [Hypothesis](https://hypothesis.readthedocs.io/) to verify invariants across random inputs.
+
+### Requirements
+
+```bash
+cd option-c-orchestrator
+pip install -e ".[dev]"  # Includes hypothesis>=6.0.0
+```
+
+### Running Property Tests
+
+```bash
+# Run all property-based tests
+pytest tests/test_property_based.py -v
+
+# Show hypothesis statistics
+pytest tests/test_property_based.py -v --hypothesis-show-statistics
+
+# Verbose output for debugging
+pytest tests/test_property_based.py -v --hypothesis-verbosity=verbose
+```
+
+### What's Tested
+
+| Property | Description |
+|----------|-------------|
+| Task model invariants | Valid tasks can be created with any valid inputs |
+| Priority bounds | Priorities always stay within 1-10 range |
+| Status transitions | Task status transitions follow valid state machine |
+| ID uniqueness | Task IDs never collide within orchestrator |
+| Dependency validation | Dependencies reference existing tasks |
+
+### Custom Strategies
+
+The test module defines reusable strategies:
+
+```python
+from tests.test_property_based import (
+    task_description_strategy,  # Non-empty ASCII strings 1-500 chars
+    priority_strategy,          # Integers 1-10
+    task_id_strategy,          # Valid task ID format
+    agent_id_strategy,         # Valid agent ID format
+)
+```
+
+---
+
+## Ralph Loop: Continuous Development Harness
+
+The project includes a continuous development loop (`ralph_loop.py`) for long-running autonomous development sessions.
+
+### Quick Start
+
+```bash
+# 1. Configure your test commands in ralph_config.json
+cat ralph_config.json
+
+# 2. Initialize the loop state
+./scripts/ralph_loop.py init
+
+# 3. Run the test gate manually
+./scripts/ralph_loop.py run-tests
+
+# 4. Export test results as JSON
+./scripts/ralph_loop.py run-tests --json --json-output artifacts/test_results.json
+```
+
+### ralph_config.json Structure
+
+```json
+{
+  "completion_token": "<<<RALPH_DONE>>>",
+  "verify_feature_passes": true,
+  "features_first": true,
+  "test_commands": [
+    "bash -lc \"cd option-c-orchestrator && pytest\"",
+    "bash -lc \"cd option-b-mcp-broker && npm test\""
+  ],
+  "optional_test_commands": [
+    "bash -lc \"cd option-c-orchestrator && pytest --cov\""
+  ]
+}
+```
+
+| Field | Description |
+|-------|-------------|
+| `completion_token` | String emitted when backlog is complete |
+| `verify_feature_passes` | Re-verify features marked as passing |
+| `features_first` | Prioritize `feature_list.json` over `TODO_RALPH.md` |
+| `test_commands` | Required commands that must pass |
+| `optional_test_commands` | Run only if target scripts exist |
+
+### Loop Commands
+
+```bash
+# Prepare next iteration (manual mode)
+./scripts/ralph_loop.py loop
+
+# Fully automatic with agent
+./scripts/ralph_loop.py loop --auto --agent-command "codex exec --full-auto"
+
+# Single step
+./scripts/ralph_loop.py step --auto
+
+# Control iteration count
+./scripts/ralph_loop.py loop --auto --max-iterations 5 --sleep 2
+```
+
+Logs are written to `.coordination/logs/ralph_loop.log` and `.coordination/logs/ralph_test_gate.log`.
 
 ---
 

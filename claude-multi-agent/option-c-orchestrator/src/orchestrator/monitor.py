@@ -13,7 +13,6 @@ from __future__ import annotations
 
 import asyncio
 import json
-import time
 import statistics
 import psutil
 from collections import defaultdict, deque
@@ -21,11 +20,10 @@ from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from enum import Enum
 from typing import Optional, Any, Callable, Awaitable
-from pathlib import Path
 
 from pydantic import BaseModel, Field
 
-from .models import Task, TaskStatus, Agent, AgentRole
+from .models import TaskStatus
 
 
 # =============================================================================

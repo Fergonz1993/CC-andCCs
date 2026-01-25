@@ -5,6 +5,7 @@ Implements leader election mechanisms to ensure high availability
 when the primary leader fails.
 """
 
+import fcntl
 import hashlib
 import logging
 import os
@@ -212,22 +213,61 @@ class LeaderElection:
                 self._release_leadership()
 
     def _acquire_leadership(self) -> bool:
-        """Try to acquire the leader lock file."""
+        """
+        Try to acquire the leader lock file using fcntl.flock() for atomic locking.
+
+        RACE CONDITION FIX: The previous implementation using O_EXCL had a TOCTOU
+        vulnerability: between checking if the lock is stale, deleting it, and
+        creating a new lock, another node could win the election.
+
+        The fix uses fcntl.flock() which provides atomic, advisory file locking:
+        1. Open or create the lock file (non-exclusive)
+        2. Try to acquire an exclusive flock (LOCK_EX | LOCK_NB)
+        3. If we get the lock, check if the existing leader info is stale
+        4. If stale or empty, we become the leader
+        5. The flock is held as long as the file descriptor is open
+        """
         try:
-            # Try to create lock file exclusively
-            flags = os.O_CREAT | os.O_EXCL | os.O_WRONLY
+            # Open or create the lock file (NOT exclusive - we'll use flock instead)
+            self._lock_fd = os.open(
+                str(self._lock_file),
+                os.O_CREAT | os.O_RDWR,
+                0o644
+            )
 
             try:
-                self._lock_fd = os.open(str(self._lock_file), flags)
-            except FileExistsError:
-                # Lock file exists, check if stale
-                if self._is_lock_stale():
-                    self._lock_file.unlink(missing_ok=True)
-                    self._lock_fd = os.open(str(self._lock_file), flags)
-                else:
-                    return False
+                # Try to acquire exclusive lock without blocking (LOCK_NB)
+                # This is atomic - only one process can hold LOCK_EX at a time
+                fcntl.flock(self._lock_fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            except (OSError, BlockingIOError):
+                # Another process holds the lock - we can't become leader
+                os.close(self._lock_fd)
+                self._lock_fd = None
+                return False
 
-            # Write our info to lock file
+            # We have the exclusive lock. Now check if existing leader info is stale.
+            # Read current content
+            try:
+                os.lseek(self._lock_fd, 0, os.SEEK_SET)
+                content = os.read(self._lock_fd, 4096).decode()
+                if content:
+                    leader_data = json.loads(content)
+                    last_heartbeat = datetime.fromisoformat(leader_data["last_heartbeat"])
+                    age = datetime.now() - last_heartbeat
+
+                    # If leader is still within lease duration, release lock and fail
+                    if age.total_seconds() <= self.config.lease_duration:
+                        # Check if it's us (we might be renewing)
+                        if leader_data.get("id") != self.node_id:
+                            fcntl.flock(self._lock_fd, fcntl.LOCK_UN)
+                            os.close(self._lock_fd)
+                            self._lock_fd = None
+                            return False
+            except (json.JSONDecodeError, KeyError, ValueError):
+                # Invalid or empty content - we can take over
+                pass
+
+            # We can become the leader - write our info
             self._term += 1
             now = datetime.now()
 
@@ -238,6 +278,9 @@ class LeaderElection:
                 term=self._term,
             )
 
+            # Truncate and write new leader info
+            os.lseek(self._lock_fd, 0, os.SEEK_SET)
+            os.ftruncate(self._lock_fd, 0)
             lock_content = json.dumps(self._current_leader.to_dict())
             os.write(self._lock_fd, lock_content.encode())
 
@@ -264,16 +307,37 @@ class LeaderElection:
 
         except Exception as e:
             logger.error(f"Failed to acquire leadership: {e}")
+            if self._lock_fd is not None:
+                try:
+                    fcntl.flock(self._lock_fd, fcntl.LOCK_UN)
+                    os.close(self._lock_fd)
+                except OSError:
+                    pass
+                self._lock_fd = None
             return False
 
     def _release_leadership(self) -> None:
-        """Release the leader lock."""
+        """
+        Release the leader lock.
+
+        Releases the fcntl.flock() and closes the file descriptor.
+        The lock file is NOT deleted - other nodes can acquire the flock
+        on the existing file when they detect the stale heartbeat.
+        """
         try:
             if self._lock_fd is not None:
+                # Release the flock before closing
+                try:
+                    fcntl.flock(self._lock_fd, fcntl.LOCK_UN)
+                except OSError:
+                    pass  # May already be unlocked
                 os.close(self._lock_fd)
                 self._lock_fd = None
 
-            self._lock_file.unlink(missing_ok=True)
+            # Note: We don't delete the lock file anymore.
+            # Other nodes will detect the stale heartbeat and take over.
+            # This avoids a race where we delete the file and another node
+            # creates it simultaneously.
 
             was_leader = self._state == LeaderState.LEADER
             self._state = LeaderState.FOLLOWER

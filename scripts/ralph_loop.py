@@ -59,6 +59,30 @@ def load_config(path: Path) -> dict:
         return json.load(f)
 
 
+def _write_test_results_json(results: list[dict], overall_rc: int, output_path: Path) -> None:
+    """Write test results to JSON file (ATOM-112)."""
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+
+    passed = sum(1 for r in results if r["status"] == "pass")
+    failed = sum(1 for r in results if r["status"] == "fail")
+    total_duration = sum(r["duration_seconds"] for r in results)
+
+    report = {
+        "timestamp": _timestamp(),
+        "summary": {
+            "total": len(results),
+            "passed": passed,
+            "failed": failed,
+            "overall_status": "pass" if overall_rc == 0 else "fail",
+            "overall_return_code": overall_rc,
+            "total_duration_seconds": round(total_duration, 3),
+        },
+        "commands": results,
+    }
+
+    output_path.write_text(json.dumps(report, indent=2), encoding="utf-8")
+
+
 def should_run_optional(command: str) -> bool:
     """Run optional commands only when their target script exists.
 
@@ -73,10 +97,37 @@ def should_run_optional(command: str) -> bool:
     return False
 
 
-def run_commands(commands: list[str], label: str, log_path: Optional[Path] = None) -> int:
+def run_commands(
+    commands: list[str],
+    label: str,
+    log_path: Optional[Path] = None,
+    results_collector: Optional[list[dict]] = None,
+) -> int:
     for cmd in commands:
         print(f"\n==> {label}: {cmd}")
-        result = subprocess.run(cmd, shell=True, executable="/bin/bash")
+        start_time = time.time()
+        result = subprocess.run(cmd, shell=True, executable="/bin/bash", capture_output=True, text=True)
+        elapsed = time.time() - start_time
+
+        # Collect result if collector provided (ATOM-112)
+        if results_collector is not None:
+            results_collector.append({
+                "command": cmd,
+                "label": label,
+                "return_code": result.returncode,
+                "duration_seconds": round(elapsed, 3),
+                "status": "pass" if result.returncode == 0 else "fail",
+                "stdout": result.stdout[:1000] if result.stdout else "",  # Truncate for JSON
+                "stderr": result.stderr[:1000] if result.stderr else "",
+                "timestamp": _timestamp(),
+            })
+
+        # Print output to console
+        if result.stdout:
+            print(result.stdout, end="")
+        if result.stderr:
+            print(result.stderr, end="", file=sys.stderr)
+
         if result.returncode != 0:
             if log_path:
                 _append_log(
@@ -278,7 +329,8 @@ def _run_agent_command(command: str, prompt_path: Path, log_path: Optional[Path]
     return result.returncode
 
 
-def run_tests(repo_root: Path, cfg: dict) -> None:
+def run_tests(repo_root: Path, cfg: dict, *, json_output: bool = False, json_path: Optional[Path] = None) -> None:
+    """Run the test gate commands (ATOM-112: supports --json flag)."""
     test_commands = cfg.get("test_commands", [])
     optional_commands = cfg.get("optional_test_commands", [])
 
@@ -294,9 +346,14 @@ def run_tests(repo_root: Path, cfg: dict) -> None:
     log_path = log_dir / "ralph_test_gate.log"
     _append_log(log_path, f"[{_timestamp()}] test-gate status=start")
 
-    rc = run_commands(test_commands, "test", log_path=log_path)
+    # Collect results for JSON output (ATOM-112)
+    results_collector: list[dict] = [] if json_output else None
+
+    rc = run_commands(test_commands, "test", log_path=log_path, results_collector=results_collector)
     if rc != 0:
         _append_log(log_path, f"[{_timestamp()}] test-gate status=fail rc={rc}")
+        if json_output:
+            _write_test_results_json(results_collector, rc, json_path or (log_dir / "test_results.json"))
         print(f"Command failed ({rc}). See {log_path}", file=sys.stderr)
         sys.exit(rc)
 
@@ -305,13 +362,22 @@ def run_tests(repo_root: Path, cfg: dict) -> None:
         print("No optional tests matched existing scripts; skipping optional tests.")
         _append_log(log_path, f"[{_timestamp()}] optional-tests status=skipped")
     if optional_to_run:
-        rc = run_commands(optional_to_run, "optional", log_path=log_path)
+        rc = run_commands(optional_to_run, "optional", log_path=log_path, results_collector=results_collector)
         if rc != 0:
             _append_log(log_path, f"[{_timestamp()}] test-gate status=fail rc={rc}")
+            if json_output:
+                _write_test_results_json(results_collector, rc, json_path or (log_dir / "test_results.json"))
             print(f"Command failed ({rc}). See {log_path}", file=sys.stderr)
             sys.exit(rc)
 
     _append_log(log_path, f"[{_timestamp()}] test-gate status=ok")
+
+    # Write JSON results if requested (ATOM-112)
+    if json_output:
+        output_path = json_path or (log_dir / "test_results.json")
+        _write_test_results_json(results_collector, 0, output_path)
+        print(f"\nTest results exported to: {output_path}")
+
     print("\nAll test commands passed.")
 
 
@@ -413,7 +479,19 @@ def main() -> None:
     subparsers = parser.add_subparsers(dest="command", required=True)
 
     subparsers.add_parser("init")
-    subparsers.add_parser("run-tests")
+
+    run_tests_parser = subparsers.add_parser("run-tests")
+    run_tests_parser.add_argument(
+        "--json",
+        action="store_true",
+        help="Export test results as JSON (ATOM-112)",
+    )
+    run_tests_parser.add_argument(
+        "--json-output",
+        type=str,
+        help="Path for JSON output file (default: .coordination/logs/test_results.json)",
+    )
+
     subparsers.add_parser("prompt")
 
     loop_parser = subparsers.add_parser("loop")
@@ -474,7 +552,8 @@ def main() -> None:
         return
 
     if args.command == "run-tests":
-        run_tests(repo_root, cfg)
+        json_path = Path(args.json_output) if args.json_output else None
+        run_tests(repo_root, cfg, json_output=args.json, json_path=json_path)
         return
 
     if args.command == "loop":

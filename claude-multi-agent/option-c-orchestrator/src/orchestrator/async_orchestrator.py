@@ -17,8 +17,6 @@ from typing import Optional, Callable, Any
 from rich.console import Console
 from rich.table import Table
 from rich.panel import Panel
-from rich.live import Live
-from rich.layout import Layout
 
 from .models import (
     Task,
@@ -27,9 +25,9 @@ from .models import (
     TaskContext,
     Discovery,
     CoordinationState,
-    AgentRole,
 )
 from .agent import ClaudeCodeAgent, AgentPool
+from .config import DEFAULT_MODEL
 
 
 console = Console()
@@ -50,12 +48,18 @@ class Orchestrator:
         self,
         working_directory: str = ".",
         max_workers: int = 3,
-        model: str = "claude-sonnet-4-20250514",
+        model: str = DEFAULT_MODEL,
         task_timeout: int = 600,
         on_task_complete: Optional[Callable[[Task], None]] = None,
         on_discovery: Optional[Callable[[Discovery], None]] = None,
         verbose: bool = True,
     ):
+        # Validate configuration
+        if max_workers < 1:
+            raise ValueError("max_workers must be at least 1")
+        if task_timeout <= 0:
+            raise ValueError("task_timeout must be positive")
+
         self.working_directory = Path(working_directory).resolve()
         self.max_workers = max_workers
         self.model = model
@@ -197,29 +201,30 @@ class Orchestrator:
 
     async def complete_task(self, task_id: str, result: TaskResult) -> bool:
         """Mark a task as completed."""
-        task = self.state.get_task(task_id)
-        if not task:
-            return False
+        async with self._task_lock:
+            task = self.state.get_task(task_id)
+            if not task:
+                return False
 
-        task.complete(result)
-        self.state.last_activity = datetime.now()
+            task.complete(result)
+            self.state.last_activity = datetime.now()
 
-        # Handle discoveries
-        for disc_content in result.discoveries:
-            discovery = Discovery(
-                agent_id=task.claimed_by or "unknown",
-                content=disc_content,
-                related_task=task_id,
-            )
-            self.state.discoveries.append(discovery)
+            # Handle discoveries
+            for disc_content in result.discoveries:
+                discovery = Discovery(
+                    agent_id=task.claimed_by or "unknown",
+                    content=disc_content,
+                    related_task=task_id,
+                )
+                self.state.discoveries.append(discovery)
 
-            if self.on_discovery:
-                self.on_discovery(discovery)
+                if self.on_discovery:
+                    self.on_discovery(discovery)
 
-        # Handle subtasks
-        for subtask_id in result.subtasks_created:
-            if self.verbose:
-                console.print(f"[yellow]New subtask created:[/] {subtask_id}")
+            # Handle subtasks
+            for subtask_id in result.subtasks_created:
+                if self.verbose:
+                    console.print(f"[yellow]New subtask created:[/] {subtask_id}")
 
         if self.on_task_complete:
             self.on_task_complete(task)
@@ -231,12 +236,13 @@ class Orchestrator:
 
     async def fail_task(self, task_id: str, error: str) -> bool:
         """Mark a task as failed."""
-        task = self.state.get_task(task_id)
-        if not task:
-            return False
+        async with self._task_lock:
+            task = self.state.get_task(task_id)
+            if not task:
+                return False
 
-        task.fail(error)
-        self.state.last_activity = datetime.now()
+            task.fail(error)
+            self.state.last_activity = datetime.now()
 
         if self.verbose:
             console.print(f"[red]Task failed:[/] {task_id} - {error}")
@@ -522,8 +528,18 @@ Output ONLY the JSON array, no other text.
 
     def save_state(self, filepath: str) -> None:
         """Save current state to a JSON file."""
+
+        def json_serializer(obj: Any) -> str:
+            """Serialize datetime objects to ISO format for proper round-trip."""
+            if isinstance(obj, datetime):
+                return obj.isoformat()
+            raise TypeError(f"Object of type {type(obj).__name__} is not JSON serializable")
+
+        # Ensure parent directory exists
+        Path(filepath).parent.mkdir(parents=True, exist_ok=True)
+
         with open(filepath, 'w') as f:
-            json.dump(self.state.model_dump(), f, indent=2, default=str)
+            json.dump(self.state.model_dump(), f, indent=2, default=json_serializer)
 
         if self.verbose:
             console.print(f"[green]State saved to {filepath}[/]")
