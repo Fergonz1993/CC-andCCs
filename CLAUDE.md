@@ -153,42 +153,66 @@ Task schema requires: `id`, `description`, `status`, `priority` (1=highest). Dep
 - **Option A**: Workers must re-read `tasks.json` after claiming to verify success
 - **Options B & C**: Built-in atomic operations
 
+## Known Architectural Issues
+
+### Agent Communication (Option C)
+**Location**: `option-c-orchestrator/src/orchestrator/agent.py`
+**Problem**: Uses `--print` flag which exits after one prompt - workers can't execute multiple tasks sequentially
+**Solutions**: Spawn new process per task, use Claude SDK directly, or manage `--conversation` mode with careful I/O handling
+
+### Dependency Cycles
+**Location**: `models.py` and `orchestrator.py`
+**Problem**: No validation for circular dependencies - `add_task()` could create deadlocks
+**Solution**: Add topological sort validation before accepting dependencies
+
+### Worker Recovery
+**Location**: `orchestrator.py`
+**Problem**: No heartbeat timeout handling - crashed workers leave tasks stuck in `in_progress`
+**Solution**: Add timeout detection and task reset logic
+
 ## CI/CD
 
-GitHub Actions workflow in `.github/workflows/test.yml` runs tests across all three options. The workflow validates:
-- Option A Python tests
-- Option B TypeScript build and Jest tests
+GitHub Actions workflow in `.github/workflows/test.yml` runs tests across all three options:
+- Option A Python tests (Python 3.10, 3.11, 3.12)
+- Option B TypeScript build and Jest tests (Node 18, 20, 22)
 - Option C pytest suite including property-based tests
+- Integration tests (cross-option validation)
+- Load tests (task throughput)
+- Chaos tests (resilience/fault injection)
+- Fuzzing tests (input validation)
+- Performance benchmarks (main branch only)
 - Security audits (pip-audit, npm audit)
+
+Test gate: `ralph test gate` runs Option C pytest + pip-audit + Option B jest + npm audit.
+
+## Current Test Status
+
+Tests must pass before implementing new features:
+- Option C pytest: 253+ tests
+- Option B jest: 21+ tests
+
+See `AGENTS.md` for current verification status and active agent roster.
 
 ---
 
 ## Long-Running Development Harness
 
-Uses Anthropic's "Effective Harnesses for Long-Running Agents" methodology for continuous development.
+Uses Anthropic's "Effective Harnesses for Long-Running Agents" methodology.
 
 | File | Purpose |
 |------|---------|
 | `init.sh` | Environment setup (run first in new session) |
 | `TODO_RALPH.md` | Active backlog and archived releases |
-| `claude-progress.txt` | Progress tracking between sessions |
 | `CODING_AGENT.md` | Complete session workflow instructions |
+| `AGENTS.md` | Current agent roster and verification status |
 
-### Quick Start
+Quick start:
 ```bash
 ./init.sh                    # Setup all environments
-cat claude-progress.txt      # Check current progress
+cat AGENTS.md                # Check current status
 ```
 
-### Development Workflow
-1. Read `claude-progress.txt` for context
-2. Run `./init.sh` if environment needs setup
-3. Verify existing tests still pass
-4. Pick ONE item from `TODO_RALPH.md` backlog
-5. Implement and verify with tests
-6. Update `TODO_RALPH.md`, commit
-
-See `CODING_AGENT.md` for detailed session instructions.
+See `CODING_AGENT.md` for detailed session workflow.
 
 ### Quick Verification Commands
 ```bash
