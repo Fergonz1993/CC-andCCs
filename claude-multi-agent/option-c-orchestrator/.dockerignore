@@ -1,0 +1,70 @@
+# Python artifacts
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Virtual environments
+.venv/
+venv/
+ENV/
+env/
+
+# IDE/Editor
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Testing
+.coverage
+.pytest_cache/
+.hypothesis/
+htmlcov/
+.tox/
+.nox/
+
+# Type checking
+.mypy_cache/
+
+# Linting
+.ruff_cache/
+
+# Documentation builds
+docs/_build/
+
+# Local development
+*.local
+*.log
+
+# Coordination artifacts (these should be mounted)
+.coordination/
+
+# Test artifacts
+artifacts/
+tests/
+
+# Examples
+examples/
+
+# Documentation
+*.md
+!README.md

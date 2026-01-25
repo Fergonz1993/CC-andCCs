@@ -14,8 +14,8 @@
     },
     "status": {
       "type": "string",
-      "enum": ["available", "claimed", "in_progress", "done", "failed"],
-      "description": "Current task status"
+      "enum": ["available", "claimed", "in_progress", "done", "failed", "cancelled", "pending", "blocked"],
+      "description": "Current task status (pending/blocked used by Option C orchestrator)"
     },
     "claimed_by": {
       "type": ["string", "null"],

@@ -1,0 +1,80 @@
+# Navigation structure for GitHub Pages documentation
+# Claude Multi-Agent Coordination System
+
+- title: Home
+  url: /
+  nav_order: 1
+
+- title: Getting Started
+  url: /getting-started
+  nav_order: 2
+
+- title: Guides
+  nav_order: 3
+  children:
+    - title: User Guide
+      url: /guides/user-guide
+    - title: Developer Setup
+      url: /guides/developer-setup
+    - title: Troubleshooting
+      url: /guides/troubleshooting
+    - title: Performance Tuning
+      url: /guides/performance-tuning
+    - title: Security
+      url: /guides/security
+    - title: Migration Guide
+      url: /guides/migration
+
+- title: API Reference
+  nav_order: 4
+  children:
+    - title: CLI Reference
+      url: /api/cli-reference
+    - title: MCP Tools
+      url: /api/mcp-tools
+    - title: Python API
+      url: /api/python-api
+    - title: OpenAPI Spec
+      url: /api/openapi
+
+- title: Architecture
+  nav_order: 5
+  children:
+    - title: System Overview
+      url: /architecture/overview
+    - title: Task Lifecycle
+      url: /architecture/task-lifecycle
+    - title: Component Diagram
+      url: /architecture/components
+    - title: ADRs
+      url: /adr/
+
+- title: Examples
+  nav_order: 6
+  children:
+    - title: Code Examples
+      url: /examples/
+    - title: Workflow Patterns
+      url: /examples/workflows
+
+- title: Tutorials
+  nav_order: 7
+  children:
+    - title: Video Tutorial
+      url: /tutorials/video-storyboard
+
+- title: Reference
+  nav_order: 8
+  children:
+    - title: FAQ
+      url: /reference/faq
+    - title: Glossary
+      url: /reference/glossary
+    - title: Changelog
+      url: /CHANGELOG
+
+- title: Releases
+  nav_order: 9
+  children:
+    - title: v2.1.0
+      url: /releases/v2.1.0

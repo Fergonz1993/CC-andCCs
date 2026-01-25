@@ -30,6 +30,12 @@ from typing import Any, Callable, Dict, Generator, Iterator, List, Optional, Uni
 class AuditEventType(str, Enum):
     """Types of audit events."""
 
+    # Legacy category events (backward compatibility)
+    AUTH = "auth"
+    SECURITY = "security"
+    TASK = "task"
+    SYSTEM = "system"
+
     # Authentication events
     AUTH_LOGIN = "auth.login"
     AUTH_LOGOUT = "auth.logout"
@@ -185,6 +191,7 @@ class AuditLogger:
         self,
         coordination_dir: Optional[str] = None,
         log_file: Optional[str] = None,
+        log_path: Optional[str] = None,
         logger: Optional[logging.Logger] = None,
         on_event: Optional[Callable[[AuditEvent], None]] = None,
         enable_console: bool = False,
@@ -198,6 +205,7 @@ class AuditLogger:
         Args:
             coordination_dir: Base coordination directory (defaults to current dir)
             log_file: Full path to audit log file (overrides coordination_dir)
+            log_path: Backward-compatible alias for log_file
             logger: Python logger to use for audit events
             on_event: Callback function for each audit event
             enable_console: Whether to print events to console
@@ -208,6 +216,8 @@ class AuditLogger:
         # Determine log file path
         if log_file:
             self.log_file = Path(log_file)
+        elif log_path:
+            self.log_file = Path(log_path)
         elif coordination_dir:
             audit_dir = Path(coordination_dir) / "audit"
             self.log_file = audit_dir / self.DEFAULT_LOG_FILE
@@ -261,6 +271,8 @@ class AuditLogger:
         ip_address: Optional[str] = None,
         correlation_id: Optional[str] = None,
         actor_role: Optional[str] = None,
+        actor: Optional[str] = None,
+        task_id: Optional[str] = None,
     ) -> AuditEvent:
         """
         Log an audit event.
@@ -268,6 +280,7 @@ class AuditLogger:
         Args:
             event_type: Type of audit event
             agent_id: ID of the agent performing the action
+            actor: Backward-compatible alias for agent_id
             action: Specific action being performed
             resource_id: ID of the affected resource (optional)
             resource_type: Type of the affected resource (optional)
@@ -277,16 +290,23 @@ class AuditLogger:
             ip_address: IP address of the actor
             correlation_id: ID for correlating related events
             actor_role: Role of the actor (leader, worker, admin)
+            task_id: Backward-compatible alias for resource_id (implies resource_type="task")
 
         Returns:
             The created AuditEvent
         """
+        resolved_agent_id = agent_id or actor
+        resolved_resource_id = resource_id or task_id
+        resolved_resource_type = resource_type
+        if task_id and not resource_type:
+            resolved_resource_type = "task"
+
         event = AuditEvent(
             event_type=event_type,
-            agent_id=agent_id,
+            agent_id=resolved_agent_id,
             action=action,
-            resource_id=resource_id,
-            resource_type=resource_type,
+            resource_id=resolved_resource_id,
+            resource_type=resolved_resource_type,
             level=level,
             details=details or {},
             outcome=outcome,
@@ -464,6 +484,15 @@ class AuditLogger:
             events = [e for e in events if e.timestamp <= end_time]
 
         return events[-limit:]
+
+    # Backward-compatible aliases
+    def query_events(self, **kwargs: Any) -> List[AuditEvent]:
+        """Alias for get_events (backward compatibility)."""
+        return self.get_events(**kwargs)
+
+    def get_entries(self, **kwargs: Any) -> List[AuditEvent]:
+        """Alias for get_events (backward compatibility)."""
+        return self.get_events(**kwargs)
 
     def _read_events_from_file(self) -> Iterator[AuditEvent]:
         """Read all events from the log file."""
@@ -663,15 +692,17 @@ class AuditLogger:
 
     def log_auth_success(
         self,
-        agent_id: str,
-        actor_role: str,
+        agent_id: Optional[str] = None,
+        actor_role: Optional[str] = None,
         method: str = "api_key",
         ip_address: Optional[str] = None,
+        actor: Optional[str] = None,
     ) -> AuditEvent:
         """Log successful authentication."""
+        resolved_agent_id = agent_id or actor
         return self.log(
             event_type=AuditEventType.AUTH_LOGIN,
-            agent_id=agent_id,
+            agent_id=resolved_agent_id,
             actor_role=actor_role,
             action=f"authenticate:{method}",
             outcome="success",
@@ -697,16 +728,18 @@ class AuditLogger:
 
     def log_access_denied(
         self,
-        agent_id: str,
-        actor_role: str,
-        permission: str,
-        resource_type: str,
+        agent_id: Optional[str] = None,
+        actor_role: Optional[str] = None,
+        permission: str = "",
+        resource_type: str = "",
         resource_id: Optional[str] = None,
+        actor: Optional[str] = None,
     ) -> AuditEvent:
         """Log access denied event."""
+        resolved_agent_id = agent_id or actor
         return self.log(
             event_type=AuditEventType.SECURITY_ACCESS_DENIED,
-            agent_id=agent_id,
+            agent_id=resolved_agent_id,
             actor_role=actor_role,
             resource_type=resource_type,
             resource_id=resource_id,
@@ -720,14 +753,16 @@ class AuditLogger:
         self,
         event_type: AuditEventType,
         task_id: str,
-        agent_id: str,
-        actor_role: str,
+        agent_id: Optional[str] = None,
+        actor_role: Optional[str] = None,
         details: Optional[Dict[str, Any]] = None,
+        actor: Optional[str] = None,
     ) -> AuditEvent:
         """Log a task-related event."""
+        resolved_agent_id = agent_id or actor
         return self.log(
             event_type=event_type,
-            agent_id=agent_id,
+            agent_id=resolved_agent_id,
             actor_role=actor_role,
             resource_type="task",
             resource_id=task_id,
@@ -736,16 +771,18 @@ class AuditLogger:
 
     def log_rate_limited(
         self,
-        agent_id: str,
-        limit_name: str,
-        requests_made: int,
-        limit: int,
+        agent_id: Optional[str] = None,
+        limit_name: str = "",
+        requests_made: int = 0,
+        limit: int = 0,
         ip_address: Optional[str] = None,
+        actor: Optional[str] = None,
     ) -> AuditEvent:
         """Log rate limit exceeded event."""
+        resolved_agent_id = agent_id or actor
         return self.log(
             event_type=AuditEventType.SECURITY_RATE_LIMITED,
-            agent_id=agent_id,
+            agent_id=resolved_agent_id,
             action="rate_limit_exceeded",
             outcome="failure",
             level=AuditLevel.WARNING,

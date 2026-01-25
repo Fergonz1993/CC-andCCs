@@ -528,28 +528,217 @@ Output ONLY the JSON array, no other text.
 
     def save_state(self, filepath: str) -> None:
         """Save current state to a JSON file."""
-
-        def json_serializer(obj: Any) -> str:
-            """Serialize datetime objects to ISO format for proper round-trip."""
-            if isinstance(obj, datetime):
-                return obj.isoformat()
-            raise TypeError(f"Object of type {type(obj).__name__} is not JSON serializable")
-
         # Ensure parent directory exists
         Path(filepath).parent.mkdir(parents=True, exist_ok=True)
 
-        with open(filepath, 'w') as f:
-            json.dump(self.state.model_dump(), f, indent=2, default=json_serializer)
+        state_data = self.state.model_dump(mode="json")
+
+        with open(filepath, "w", encoding="utf-8") as f:
+            json.dump(state_data, f, indent=2, ensure_ascii=False, default=str)
 
         if self.verbose:
             console.print(f"[green]State saved to {filepath}[/]")
 
     def load_state(self, filepath: str) -> None:
         """Load state from a JSON file."""
-        with open(filepath, 'r') as f:
+        with open(filepath, "r", encoding="utf-8") as f:
             data = json.load(f)
 
         self.state = CoordinationState.model_validate(data)
 
         if self.verbose:
             console.print(f"[green]State loaded from {filepath}[/]")
+
+    # =========================================================================
+    # Health Check (PROD-007)
+    # =========================================================================
+
+    def health_check(self) -> dict[str, Any]:
+        """
+        Perform comprehensive health check of the orchestrator.
+
+        Implements: PROD-007 - Health check endpoint for Option C
+
+        Returns:
+            Dictionary with health status and details
+        """
+        checks = {}
+
+        # Check working directory accessibility
+        try:
+            test_file = self.working_directory / ".health-check-test"
+            test_file.write_text("health check")
+            test_file.unlink()
+            checks["filesystem"] = {
+                "status": "pass",
+                "message": "Working directory is accessible",
+                "details": {"path": str(self.working_directory)}
+            }
+        except (IOError, OSError) as e:
+            checks["filesystem"] = {
+                "status": "fail",
+                "message": "Working directory is not accessible",
+                "details": {"path": str(self.working_directory), "error": str(e)}
+            }
+
+        # Check internal state consistency
+        try:
+            progress = self.state.get_progress()
+            task_ids = [t.id for t in self.state.tasks]
+            duplicate_ids = [tid for tid in task_ids if task_ids.count(tid) > 1]
+
+            if duplicate_ids:
+                checks["state_consistency"] = {
+                    "status": "warn",
+                    "message": f"Found {len(set(duplicate_ids))} duplicate task IDs",
+                    "details": {"duplicates": list(set(duplicate_ids))}
+                }
+            else:
+                checks["state_consistency"] = {
+                    "status": "pass",
+                    "message": "State is consistent",
+                    "details": {
+                        "total_tasks": progress["total_tasks"],
+                        "by_status": progress["by_status"],
+                        "percent_complete": progress["percent_complete"]
+                    }
+                }
+        except Exception as e:
+            checks["state_consistency"] = {
+                "status": "fail",
+                "message": "State consistency check failed",
+                "details": {"error": str(e)}
+            }
+
+        # Check agent pool health
+        try:
+            agents = self._pool.get_all_agents()
+            running_agents = [a for a in agents if a.is_running]
+            checks["agent_pool"] = {
+                "status": "pass" if len(running_agents) > 0 or len(agents) == 0 else "warn",
+                "message": f"{len(running_agents)}/{len(agents)} agents running",
+                "details": {
+                    "total_agents": len(agents),
+                    "running": len(running_agents),
+                    "agent_ids": [a.agent_id for a in agents]
+                }
+            }
+        except Exception as e:
+            checks["agent_pool"] = {
+                "status": "fail",
+                "message": "Agent pool check failed",
+                "details": {"error": str(e)}
+            }
+
+        # Determine overall status
+        statuses = [c.get("status", "fail") for c in checks.values()]
+        if "fail" in statuses:
+            overall_status = "unhealthy"
+        elif "warn" in statuses:
+            overall_status = "degraded"
+        else:
+            overall_status = "healthy"
+
+        return {
+            "status": overall_status,
+            "checks": checks,
+            "timestamp": datetime.now().isoformat(),
+            "running": self._running,
+            "version": "2.2.0"
+        }
+
+    # =========================================================================
+    # Graceful Shutdown (PROD-008)
+    # =========================================================================
+
+    async def graceful_shutdown(
+        self,
+        timeout: float = 30.0,
+        persist_state: bool = True,
+        state_filepath: Optional[str] = None
+    ) -> dict[str, Any]:
+        """
+        Gracefully shutdown the orchestrator.
+
+        Implements: PROD-008 - Graceful shutdown handler for Option C
+
+        Args:
+            timeout: Maximum seconds to wait for active tasks to complete
+            persist_state: Whether to save state before shutdown
+            state_filepath: Path to save state (default: .coordination/orchestrator-state.json)
+
+        Returns:
+            Dictionary with shutdown summary
+        """
+        if self.verbose:
+            console.print("[yellow]Initiating graceful shutdown...[/]")
+
+        shutdown_start = datetime.now()
+        shutdown_log = []
+
+        # Mark as shutting down (stop accepting new tasks)
+        self._running = False
+        shutdown_log.append(f"[{datetime.now().isoformat()}] Stopped accepting new tasks")
+
+        # Wait for active tasks to complete (with timeout)
+        active_tasks = [
+            t for t in self.state.tasks
+            if t.status in (TaskStatus.CLAIMED, TaskStatus.IN_PROGRESS)
+        ]
+
+        if active_tasks:
+            if self.verbose:
+                console.print(f"[yellow]Waiting for {len(active_tasks)} active tasks to complete...[/]")
+
+            wait_start = datetime.now()
+            while active_tasks and (datetime.now() - wait_start).total_seconds() < timeout:
+                await asyncio.sleep(0.5)
+                active_tasks = [
+                    t for t in self.state.tasks
+                    if t.status in (TaskStatus.CLAIMED, TaskStatus.IN_PROGRESS)
+                ]
+
+            if active_tasks:
+                shutdown_log.append(
+                    f"[{datetime.now().isoformat()}] Timeout reached with {len(active_tasks)} tasks still active"
+                )
+                # Mark remaining active tasks as failed due to shutdown
+                for task in active_tasks:
+                    task.fail("Forced shutdown - task did not complete in time")
+                    shutdown_log.append(f"[{datetime.now().isoformat()}] Force-failed task {task.id}")
+            else:
+                shutdown_log.append(f"[{datetime.now().isoformat()}] All active tasks completed")
+
+        # Persist state if requested
+        if persist_state:
+            state_path = state_filepath or str(
+                self.working_directory / ".coordination" / "orchestrator-state.json"
+            )
+            try:
+                self.save_state(state_path)
+                shutdown_log.append(f"[{datetime.now().isoformat()}] State persisted to {state_path}")
+            except Exception as e:
+                shutdown_log.append(f"[{datetime.now().isoformat()}] Failed to persist state: {e}")
+
+        # Stop all agents
+        try:
+            await self._pool.stop_all()
+            shutdown_log.append(f"[{datetime.now().isoformat()}] All agents stopped")
+        except Exception as e:
+            shutdown_log.append(f"[{datetime.now().isoformat()}] Error stopping agents: {e}")
+
+        shutdown_duration = (datetime.now() - shutdown_start).total_seconds()
+
+        if self.verbose:
+            console.print(f"[green]Graceful shutdown completed in {shutdown_duration:.2f}s[/]")
+
+        return {
+            "success": True,
+            "duration_seconds": shutdown_duration,
+            "forced_task_count": len([
+                t for t in self.state.tasks
+                if t.status == TaskStatus.FAILED and "Forced shutdown" in (t.error or "")
+            ]),
+            "log": shutdown_log,
+            "timestamp": datetime.now().isoformat()
+        }

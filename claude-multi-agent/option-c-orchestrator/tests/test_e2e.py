@@ -457,6 +457,48 @@ class TestE2EOrchestrationFlow:
         assert "last_activity" in status
         assert status["goal"] == "Test status report"
 
+    @pytest.mark.asyncio
+    async def test_e2e_011_state_persistence_unicode(self, temp_working_dir):
+        """
+        e2e-011: State persistence handles Unicode content.
+
+        Verifies:
+        - save_state writes Unicode safely
+        - load_state restores Unicode fields
+        """
+        orchestrator = Orchestrator(
+            working_directory=str(temp_working_dir),
+            verbose=False
+        )
+
+        await orchestrator.initialize(goal="Unicode goal ✅")
+
+        task = orchestrator.add_task(description="Emoji task 🚀")
+        await orchestrator.claim_task("worker-1")
+
+        await orchestrator.complete_task(
+            task.id,
+            TaskResult(
+                output="Completed ✅",
+                discoveries=["发现: 关键细节"]
+            ),
+        )
+
+        state_file = str(temp_working_dir / "state-unicode.json")
+        orchestrator.save_state(state_file)
+
+        new_orchestrator = Orchestrator(
+            working_directory=str(temp_working_dir),
+            verbose=False
+        )
+        new_orchestrator.load_state(state_file)
+
+        assert new_orchestrator.state.goal == "Unicode goal ✅"
+        assert new_orchestrator.state.tasks[0].description == "Emoji task 🚀"
+        assert new_orchestrator.state.tasks[0].result is not None
+        assert new_orchestrator.state.tasks[0].result.output == "Completed ✅"
+        assert new_orchestrator.state.discoveries[0].content == "发现: 关键细节"
+
 
 class TestE2EErrorScenarios:
     """

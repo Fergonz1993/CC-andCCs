@@ -2936,22 +2936,114 @@ async function main() {
   console.error(`Claude Coordination MCP Server running on stdio`);
   console.error(`State file: ${STATE_FILE}`);
 
-  // Graceful shutdown handler
-  process.on("SIGINT", async () => {
-    console.error("Shutting down...");
-    if (wsTransport) {
-      await wsTransport.stop();
-    }
-    process.exit(0);
-  });
+  // Graceful shutdown handler (PROD-008)
+  const SHUTDOWN_TIMEOUT_MS = 30000; // 30 seconds
+  let isShuttingDown = false;
 
-  process.on("SIGTERM", async () => {
-    console.error("Shutting down...");
-    if (wsTransport) {
-      await wsTransport.stop();
+  async function gracefulShutdown(signal: string) {
+    if (isShuttingDown) {
+      console.error(`Already shutting down, ignoring ${signal}`);
+      return;
     }
+
+    isShuttingDown = true;
+    const shutdownStart = Date.now();
+    console.error(
+      `\n[${new Date().toISOString()}] Received ${signal}, initiating graceful shutdown...`,
+    );
+
+    // Track active requests by checking in-progress tasks
+    const activeTaskCount = state.tasks.filter(
+      (t) => t.status === "claimed" || t.status === "in_progress",
+    ).length;
+
+    if (activeTaskCount > 0) {
+      console.error(
+        `[${new Date().toISOString()}] Waiting for ${activeTaskCount} active tasks to complete...`,
+      );
+
+      // Wait for active tasks with timeout
+      const waitInterval = setInterval(() => {
+        const remaining = state.tasks.filter(
+          (t) => t.status === "claimed" || t.status === "in_progress",
+        ).length;
+
+        const elapsed = Date.now() - shutdownStart;
+        if (remaining === 0) {
+          console.error(`[${new Date().toISOString()}] All tasks completed`);
+          clearInterval(waitInterval);
+        } else if (elapsed >= SHUTDOWN_TIMEOUT_MS) {
+          console.error(
+            `[${new Date().toISOString()}] Timeout reached with ${remaining} tasks still active, forcing shutdown`,
+          );
+          clearInterval(waitInterval);
+        }
+      }, 500);
+
+      // Wait up to timeout
+      await new Promise<void>((resolve) => {
+        const checkComplete = setInterval(() => {
+          const remaining = state.tasks.filter(
+            (t) => t.status === "claimed" || t.status === "in_progress",
+          ).length;
+          const elapsed = Date.now() - shutdownStart;
+
+          if (remaining === 0 || elapsed >= SHUTDOWN_TIMEOUT_MS) {
+            clearInterval(checkComplete);
+            resolve();
+          }
+        }, 100);
+      });
+    }
+
+    // Save state before shutdown
+    console.error(
+      `[${new Date().toISOString()}] Persisting state to ${STATE_FILE}...`,
+    );
+    try {
+      saveState();
+      console.error(`[${new Date().toISOString()}] State saved successfully`);
+    } catch (error) {
+      console.error(
+        `[${new Date().toISOString()}] Failed to save state:`,
+        error,
+      );
+    }
+
+    // Stop WebSocket transport
+    if (wsTransport) {
+      console.error(
+        `[${new Date().toISOString()}] Stopping WebSocket transport...`,
+      );
+      try {
+        await wsTransport.stop();
+        console.error(
+          `[${new Date().toISOString()}] WebSocket transport stopped`,
+        );
+      } catch (error) {
+        console.error(
+          `[${new Date().toISOString()}] Error stopping WebSocket transport:`,
+          error,
+        );
+      }
+    }
+
+    // Stop request queue
+    if (requestQueue) {
+      console.error(`[${new Date().toISOString()}] Stopping request queue...`);
+      requestQueue.stopProcessing();
+    }
+
+    const shutdownDuration = (Date.now() - shutdownStart) / 1000;
+    console.error(
+      `[${new Date().toISOString()}] Graceful shutdown completed in ${shutdownDuration.toFixed(2)}s`,
+    );
+
     process.exit(0);
-  });
+  }
+
+  process.on("SIGINT", () => gracefulShutdown("SIGINT"));
+  process.on("SIGTERM", () => gracefulShutdown("SIGTERM"));
 }
 
 main().catch(console.error);

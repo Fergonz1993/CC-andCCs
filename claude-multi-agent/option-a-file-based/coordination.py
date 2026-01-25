@@ -213,6 +213,25 @@ def file_lock(filepath: Path, exclusive: bool = True):
                 fcntl.flock(f.fileno(), fcntl.LOCK_UN)
 
 
+def move_to_trash(path: Path) -> Optional[Path]:
+    """Move a file to ~/.codex/trash with a TO_DELETE_ prefix."""
+    if not path.exists():
+        return None
+
+    trash_dir = Path.home() / ".codex" / "trash"
+    trash_dir.mkdir(parents=True, exist_ok=True)
+
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
+    target = trash_dir / f"TO_DELETE_{path.name}_{timestamp}"
+
+    try:
+        path.rename(target)
+        return target
+    except (FileNotFoundError, OSError):
+        # Best-effort only; never raise for missing or in-use files.
+        return None
+
+
 def generate_task_id() -> str:
     """Generate a unique task ID."""
     timestamp = datetime.now().strftime("%Y%m%d%H%M%S")
@@ -291,12 +310,13 @@ def save_tasks_no_lock(data: dict):
 
 
 def cleanup_old_backups():
-    """Remove old backups beyond the retention count."""
+    """Archive old backups beyond the retention count."""
     backups = sorted(BACKUPS_DIR.glob("tasks_backup_*.json"))
     while len(backups) > BACKUP_RETENTION_COUNT:
         oldest = backups.pop(0)
-        oldest.unlink()
-        log_action("system", "BACKUP_DELETED", str(oldest))
+        archived = move_to_trash(oldest)
+        if archived:
+            log_action("system", "BACKUP_ARCHIVED", str(archived))
 
 
 def create_backup():
@@ -2184,6 +2204,286 @@ def leader_estimation_report():
 
 
 # ============================================================================
+# HEALTH CHECK (PROD-007)
+# ============================================================================
+
+@dataclass
+class HealthCheckResult:
+    """Result of a health check."""
+    status: str  # healthy, degraded, unhealthy
+    checks: Dict[str, Dict[str, Any]]
+    timestamp: str
+    uptime_seconds: Optional[float] = None
+    version: str = "1.0.0"
+
+    def to_dict(self) -> dict:
+        return asdict(self)
+
+
+def check_filesystem_health() -> Dict[str, Any]:
+    """Check if coordination directory is accessible and writable."""
+    try:
+        # Check directory exists
+        if not COORDINATION_DIR.exists():
+            return {
+                "status": "fail",
+                "message": "Coordination directory does not exist",
+                "details": {"path": str(COORDINATION_DIR)}
+            }
+
+        # Check if writable by creating a test file
+        test_file = COORDINATION_DIR / ".health-check-test"
+        try:
+            test_file.write_text("health check")
+            move_to_trash(test_file)
+        except (IOError, OSError) as e:
+            return {
+                "status": "fail",
+                "message": "Coordination directory is not writable",
+                "details": {"path": str(COORDINATION_DIR), "error": str(e)}
+            }
+
+        # Check tasks.json exists and is readable
+        if TASKS_FILE.exists():
+            try:
+                stats = TASKS_FILE.stat()
+                return {
+                    "status": "pass",
+                    "message": "Filesystem is healthy",
+                    "details": {
+                        "path": str(COORDINATION_DIR),
+                        "tasks_file_size": stats.st_size,
+                        "last_modified": datetime.fromtimestamp(stats.st_mtime).isoformat()
+                    }
+                }
+            except OSError as e:
+                return {
+                    "status": "warn",
+                    "message": "Tasks file exists but cannot read stats",
+                    "details": {"error": str(e)}
+                }
+
+        return {
+            "status": "pass",
+            "message": "Filesystem is healthy (no tasks file yet)",
+            "details": {"path": str(COORDINATION_DIR)}
+        }
+
+    except Exception as e:
+        return {
+            "status": "fail",
+            "message": "Filesystem check failed",
+            "details": {"error": str(e)}
+        }
+
+
+def check_state_consistency() -> Dict[str, Any]:
+    """Check internal state consistency of tasks.json."""
+    try:
+        if not TASKS_FILE.exists():
+            return {
+                "status": "pass",
+                "message": "No tasks file (clean state)",
+                "details": {}
+            }
+
+        # Try to load and validate tasks
+        data = load_tasks()
+        tasks = data.get("tasks", [])
+
+        issues = []
+
+        # Check for duplicate IDs
+        task_ids = [t.get("id") for t in tasks]
+        duplicates = [tid for tid in task_ids if task_ids.count(tid) > 1]
+        if duplicates:
+            issues.append(f"Duplicate task IDs: {set(duplicates)}")
+
+        # Check for invalid statuses
+        valid_statuses = {"available", "claimed", "in_progress", "done", "failed", "cancelled", "blocked"}
+        for task in tasks:
+            if task.get("status") not in valid_statuses:
+                issues.append(f"Invalid status '{task.get('status')}' for task {task.get('id')}")
+
+        # Check for orphaned dependencies
+        existing_ids = set(task_ids)
+        for task in tasks:
+            for dep in task.get("dependencies", []):
+                if dep not in existing_ids:
+                    issues.append(f"Task {task.get('id')} has missing dependency: {dep}")
+
+        # Check for claimed tasks without claimer
+        for task in tasks:
+            if task.get("status") in ("claimed", "in_progress") and not task.get("claimed_by"):
+                issues.append(f"Task {task.get('id')} is {task.get('status')} but has no claimer")
+
+        if issues:
+            return {
+                "status": "warn",
+                "message": f"Found {len(issues)} consistency issues",
+                "details": {"issues": issues[:10], "total_issues": len(issues)}  # Limit to 10
+            }
+
+        return {
+            "status": "pass",
+            "message": "State is consistent",
+            "details": {
+                "total_tasks": len(tasks),
+                "by_status": {
+                    status: len([t for t in tasks if t.get("status") == status])
+                    for status in valid_statuses
+                    if any(t.get("status") == status for t in tasks)
+                }
+            }
+        }
+
+    except json.JSONDecodeError as e:
+        return {
+            "status": "fail",
+            "message": "Tasks file is corrupted (invalid JSON)",
+            "details": {"error": str(e)}
+        }
+    except Exception as e:
+        return {
+            "status": "fail",
+            "message": "State consistency check failed",
+            "details": {"error": str(e)}
+        }
+
+
+def check_worker_liveness() -> Dict[str, Any]:
+    """Check if registered workers are still alive based on heartbeats."""
+    try:
+        health = check_worker_health()
+
+        if not health:
+            return {
+                "status": "pass",
+                "message": "No workers registered",
+                "details": {"total": 0, "active": 0, "stale": 0}
+            }
+
+        total = len(health)
+        healthy_count = sum(1 for s in health.values() if s == "healthy")
+        warning_count = sum(1 for s in health.values() if s == "warning")
+        dead_count = sum(1 for s in health.values() if s == "dead")
+
+        if dead_count > 0 and healthy_count == 0:
+            return {
+                "status": "warn",
+                "message": "All workers are stale or dead",
+                "details": {"total": total, "healthy": healthy_count, "warning": warning_count, "dead": dead_count}
+            }
+
+        if dead_count > total / 2:
+            return {
+                "status": "warn",
+                "message": "More than half of workers are dead",
+                "details": {"total": total, "healthy": healthy_count, "warning": warning_count, "dead": dead_count}
+            }
+
+        return {
+            "status": "pass",
+            "message": "Workers are healthy",
+            "details": {"total": total, "healthy": healthy_count, "warning": warning_count, "dead": dead_count}
+        }
+
+    except Exception as e:
+        return {
+            "status": "warn",
+            "message": "Worker liveness check failed",
+            "details": {"error": str(e)}
+        }
+
+
+def perform_health_check(output_format: str = "text") -> HealthCheckResult:
+    """
+    Perform comprehensive health check of the coordination system.
+
+    Implements: PROD-007 - Health check endpoint for Option A
+
+    Args:
+        output_format: Output format ("text", "json")
+
+    Returns:
+        HealthCheckResult with status and details
+    """
+    filesystem_check = check_filesystem_health()
+    state_check = check_state_consistency()
+    worker_check = check_worker_liveness()
+
+    checks = {
+        "filesystem": filesystem_check,
+        "state_consistency": state_check,
+        "worker_liveness": worker_check
+    }
+
+    # Determine overall status
+    statuses = [c.get("status", "fail") for c in checks.values()]
+    if "fail" in statuses:
+        overall_status = "unhealthy"
+    elif "warn" in statuses:
+        overall_status = "degraded"
+    else:
+        overall_status = "healthy"
+
+    result = HealthCheckResult(
+        status=overall_status,
+        checks=checks,
+        timestamp=now_iso()
+    )
+
+    return result
+
+
+def health_command(output_format: str = "text") -> int:
+    """
+    CLI health check command.
+
+    Args:
+        output_format: Output format ("text", "json")
+
+    Returns:
+        Exit code (0 = healthy, 1 = degraded, 2 = unhealthy)
+    """
+    result = perform_health_check(output_format)
+
+    if output_format == "json":
+        print(json.dumps(result.to_dict(), indent=2))
+    else:
+        status_symbols = {
+            "healthy": "[OK]",
+            "degraded": "[!]",
+            "unhealthy": "[X]"
+        }
+
+        print(f"\nHealth Check: {status_symbols.get(result.status, '[?]')} {result.status.upper()}")
+        print(f"Timestamp: {result.timestamp}")
+        print("-" * 50)
+
+        for check_name, check_result in result.checks.items():
+            check_status = check_result.get("status", "unknown")
+            check_symbol = {"pass": "[OK]", "warn": "[!]", "fail": "[X]"}.get(check_status, "[?]")
+            print(f"  {check_symbol} {check_name}: {check_result.get('message', 'No message')}")
+
+            # Show details for warnings/failures
+            if check_status in ("warn", "fail") and check_result.get("details"):
+                for key, value in check_result["details"].items():
+                    if isinstance(value, list):
+                        print(f"      {key}:")
+                        for item in value[:5]:  # Limit to 5 items
+                            print(f"        - {item}")
+                    else:
+                        print(f"      {key}: {value}")
+
+        print("-" * 50)
+
+    # Return exit code based on status
+    exit_codes = {"healthy": 0, "degraded": 1, "unhealthy": 2}
+    return exit_codes.get(result.status, 2)
+
+
+# ============================================================================
 # MAINTENANCE COMMANDS
 # ============================================================================
 
@@ -2584,6 +2884,11 @@ def main():
     metrics_sub.add_parser("queue", help="Show queue metrics")
     metrics_sub.add_parser("errors", help="Show error metrics")
 
+    # Health check command (PROD-007)
+    health_parser = subparsers.add_parser("health", help="Check coordination system health")
+    health_parser.add_argument("--format", "-f", choices=["text", "json"], default="text",
+                               help="Output format (default: text)")
+
     args = parser.parse_args()
 
     if args.role == "leader":
@@ -2732,6 +3037,10 @@ def main():
                     print(f"    - {cat}: {count}")
         else:
             metrics_parser.print_help()
+
+    elif args.role == "health":
+        exit_code = health_command(args.format)
+        sys.exit(exit_code)
 
     else:
         parser.print_help()

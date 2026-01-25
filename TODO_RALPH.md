@@ -1,9 +1,51 @@
 # TODO_RALPH.md
 
-End goal: Expand the multi-agent coordination system with a hardened test gate, clearer hybrid orchestrator boundaries, and broader reliability/observability coverage for v2.1.
-Status: v2.1 backlog complete. New 200-feature list lives in feature_list.json (api/observability/deployment pending verification).
+End goal: Production-ready multi-agent coordination system with real API endpoints, observability stack, containerization, and comprehensive documentation.
+Status: v2.2.0 in progress.
 
-## P0 - Correctness / Security / Critical Path
+---
+
+## v2.2.0 Backlog
+
+### P0 - Production Hardening
+- [x] PROD-001: Create Dockerfile for Option C orchestrator
+- [x] PROD-002: Create Dockerfile for Option B MCP server
+- [x] PROD-003: Add docker-compose.yml for full stack deployment
+- [x] PROD-004: Implement rate limiting middleware for MCP server
+- [x] PROD-005: Add JWT authentication to Option B endpoints
+- [x] PROD-006: Create k6 load testing scripts for task throughput
+- [x] PROD-007: Add health check endpoints to all options
+- [x] PROD-008: Implement graceful shutdown handlers
+
+### P1 - Observability Stack
+- [x] OBS-001: Add Prometheus metrics exporter for Option C
+- [x] OBS-002: Create Grafana dashboard JSON for coordination metrics
+- [x] OBS-003: Integrate OpenTelemetry tracing for task lifecycle
+- [x] OBS-004: Add structured logging with correlation IDs
+- [x] OBS-005: Create alerting rules for task queue depth
+
+### P2 - Documentation & Adoption
+- [x] DOC-001: Create GitHub Release for v2.1.0 with full release notes
+- [x] DOC-002: Set up GitHub Pages documentation site
+- [ ] DOC-003: Add interactive API playground (Swagger UI)
+- [x] DOC-004: Create video tutorial script and storyboard
+- [x] DOC-005: Add architecture diagrams (Mermaid)
+
+### P3 - Cleanup & Maintenance
+- [x] CLEAN-001: Archive v2.1.0 completed items to CHANGELOG
+- [x] CLEAN-002: Remove stale feature_list.json references
+- [x] CLEAN-003: Consolidate duplicate code across options
+- [x] CLEAN-004: Update all README files with v2.1.0 features
+- [x] CLEAN-005: Add CODEOWNERS file for review assignments
+
+---
+
+## Archived Releases
+
+<details>
+<summary><strong>v2.1.0 Completed (32 items)</strong></summary>
+
+### P0 - Correctness / Security / Critical Path (10 items)
 - [x] ATOM-001: Add Hypothesis to Option C dev deps and make property-based tests run in CI
 - [x] ATOM-002: Add pip-audit to Option C dev deps and wire it into ralph test gate
 - [x] ATOM-003: Add npm audit --omit=dev to ralph test gate for Option B and core extensions
@@ -15,7 +57,7 @@ Status: v2.1 backlog complete. New 200-feature list lives in feature_list.json (
 - [x] ATOM-009: Add unit tests for AgentConfig defaults and heartbeat thread teardown
 - [x] ATOM-010: Add smoke test ensuring async orchestrator remains the default for CLI entrypoints
 
-## P1 - Reliability / Observability / Performance
+### P1 - Reliability / Observability / Performance (12 items)
 - [x] ATOM-101: Add ralph test gate summary output to a log file under .coordination/logs
 - [x] ATOM-102: Add coverage reports for Option C pytest and Option B jest (store in artifacts/)
 - [x] ATOM-103: Add lint/typecheck commands to ralph_config for Option B and key extensions
@@ -29,7 +71,7 @@ Status: v2.1 backlog complete. New 200-feature list lives in feature_list.json (
 - [x] ATOM-111: Add agent capability matching tests for orchestrator routing
 - [x] ATOM-112: Add CLI flag to export ralph_config test gate results as JSON
 
-## P2 - DX / Cleanup / Nice-to-have
+### P2 - DX / Cleanup / Nice-to-have (10 items)
 - [x] ATOM-201: Add .gitignore entry for .codex/ and vercel-agent-skills/ artifacts
 - [x] ATOM-202: Document hybrid orchestrator behavior in README
 - [x] ATOM-203: Add quickstart section for ralph_config.json and scripts/ralph_loop.py
@@ -40,3 +82,5 @@ Status: v2.1 backlog complete. New 200-feature list lives in feature_list.json (
 - [x] ATOM-208: Add dev script to regenerate test catalog markdown
 - [x] ATOM-209: Add script to clean coordination artifacts (tasks/logs/results)
 - [x] ATOM-210: Add minimal changelog template for v2.1 iterations
+
+</details>

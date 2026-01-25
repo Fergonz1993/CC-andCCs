@@ -471,7 +471,7 @@ cat ralph_config.json
 |-------|-------------|
 | `completion_token` | String emitted when backlog is complete |
 | `verify_feature_passes` | Re-verify features marked as passing |
-| `features_first` | Prioritize `feature_list.json` over `TODO_RALPH.md` |
+| `features_first` | (Legacy) Prioritize feature lists over `TODO_RALPH.md` |
 | `test_commands` | Required commands that must pass |
 | `optional_test_commands` | Run only if target scripts exist |
 
@@ -492,6 +492,29 @@ cat ralph_config.json
 ```
 
 Logs are written to `.coordination/logs/ralph_loop.log` and `.coordination/logs/ralph_test_gate.log`.
+
+---
+
+## Documentation
+
+For comprehensive documentation, see the [docs/](../docs/) directory:
+
+- **[Getting Started](../docs/getting-started.md)** - Quick start guide for all options
+- **[User Guide](../docs/guides/user-guide.md)** - Complete usage documentation
+- **[API Reference](../docs/api/cli-reference.md)** - CLI, MCP tools, and Python API
+- **[Architecture](../docs/architecture/overview.md)** - System design and diagrams
+
+### Architecture Diagrams
+
+The architecture documentation includes Mermaid diagrams:
+
+- **[System Overview](../docs/architecture/overview.md)** - High-level component diagram
+- **[Task Lifecycle](../docs/architecture/task-lifecycle.md)** - State machine and sequence diagrams
+- **[Component Diagram](../docs/architecture/components.md)** - Detailed component relationships
+
+### Releases
+
+- **[v2.1.0 Release Notes](../docs/releases/v2.1.0.md)** - Latest release with 32 ATOM features
 
 ---
 

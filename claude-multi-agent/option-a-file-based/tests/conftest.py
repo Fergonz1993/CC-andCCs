@@ -46,6 +46,14 @@ def mock_coordination_dir(temp_dir: Path, monkeypatch) -> Path:
     monkeypatch.setattr(coordination, "DISCOVERIES_FILE", coordination_dir / "context" / "discoveries.md")
     monkeypatch.setattr(coordination, "LOGS_DIR", coordination_dir / "logs")
     monkeypatch.setattr(coordination, "RESULTS_DIR", coordination_dir / "results")
+    monkeypatch.setattr(coordination, "TEMPLATES_DIR", coordination_dir / "templates")
+    monkeypatch.setattr(coordination, "GROUPS_FILE", coordination_dir / "groups.json")
+    monkeypatch.setattr(coordination, "CHECKPOINTS_DIR", coordination_dir / "checkpoints")
+    monkeypatch.setattr(coordination, "BACKUPS_DIR", coordination_dir / "backups")
+    monkeypatch.setattr(coordination, "TRANSACTION_LOG_FILE", coordination_dir / "transaction.log")
+    monkeypatch.setattr(coordination, "HEARTBEAT_FILE", coordination_dir / "heartbeats.json")
+    monkeypatch.setattr(coordination, "METRICS_FILE", coordination_dir / "metrics.json")
+    monkeypatch.setattr(coordination, "METRICS_HISTORY_DIR", coordination_dir / "metrics_history")
     monkeypatch.setattr(coordination, "AGENTS_FILE", coordination_dir / "agents.json")
 
     return coordination_dir

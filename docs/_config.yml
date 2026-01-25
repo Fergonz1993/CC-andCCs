@@ -1,0 +1,106 @@
+# Jekyll configuration for GitHub Pages
+# Claude Multi-Agent Coordination System Documentation
+
+title: Claude Multi-Agent Coordination
+description: Coordinate multiple Claude Code instances to work together on complex tasks
+baseurl: "/claude-multi-agent"
+url: "https://your-org.github.io"
+
+# Theme
+remote_theme: just-the-docs/just-the-docs
+color_scheme: light
+
+# Repository
+aux_links:
+  "GitHub":
+    - "https://github.com/your-org/claude-multi-agent"
+
+# Footer
+footer_content: "Copyright &copy; 2024-2026. Distributed under MIT License."
+
+# Search
+search_enabled: true
+search:
+  heading_level: 2
+  previews: 3
+  preview_words_before: 5
+  preview_words_after: 10
+  tokenizer_separator: /[\s/]+/
+  rel_url: true
+  button: false
+
+# Navigation
+nav_sort: case_sensitive
+nav_external_links:
+  - title: API Reference
+    url: api/cli-reference.html
+    hide_icon: false
+
+# Collections
+collections:
+  tutorials:
+    output: true
+    permalink: /:collection/:name
+
+# Defaults
+defaults:
+  - scope:
+      path: ""
+    values:
+      layout: default
+  - scope:
+      path: "api"
+    values:
+      layout: default
+      nav_order: 4
+      parent: API Reference
+  - scope:
+      path: "guides"
+    values:
+      layout: default
+      nav_order: 3
+      parent: Guides
+  - scope:
+      path: "architecture"
+    values:
+      layout: default
+      nav_order: 5
+      parent: Architecture
+  - scope:
+      path: "examples"
+    values:
+      layout: default
+      nav_order: 6
+      parent: Examples
+
+# Build settings
+markdown: kramdown
+highlighter: rouge
+
+kramdown:
+  input: GFM
+  syntax_highlighter: rouge
+  syntax_highlighter_opts:
+    block:
+      line_numbers: false
+
+# Plugins
+plugins:
+  - jekyll-seo-tag
+  - jekyll-sitemap
+
+# Exclude from processing
+exclude:
+  - Gemfile
+  - Gemfile.lock
+  - node_modules
+  - vendor
+  - .git
+  - .github
+  - README.md
+  - CODEBASE_AUDIT_PROMPT.md
+  - AUDIT_REPORT.md
+
+# Include
+include:
+  - _data

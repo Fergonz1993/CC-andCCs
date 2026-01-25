@@ -27,9 +27,9 @@ Cross-cutting utilities used by all options:
 - `shared/ai/` - Task prioritization, decomposition, anomaly detection
 - `shared/cross_option/` - Migration, sync, unified CLI, plugins
 
-### Feature Tracking
+### Progress Tracking
 
-The project tracks 180+ features in `feature_list.json`. Each feature has verification metadata linking to specific code files. Check `AGENTS.md` for current verification status.
+Development progress is tracked via `TODO_RALPH.md` which contains the active backlog organized by priority. Completed items from previous releases are archived in collapsible sections. Check `AGENTS.md` for current verification status.
 
 ## Build & Test Commands
 
@@ -170,7 +170,7 @@ Uses Anthropic's "Effective Harnesses for Long-Running Agents" methodology for c
 | File | Purpose |
 |------|---------|
 | `init.sh` | Environment setup (run first in new session) |
-| `feature_list.json` | 210 features to implement/verify |
+| `TODO_RALPH.md` | Active backlog and archived releases |
 | `claude-progress.txt` | Progress tracking between sessions |
 | `CODING_AGENT.md` | Complete session workflow instructions |
 
@@ -184,9 +184,9 @@ cat claude-progress.txt      # Check current progress
 1. Read `claude-progress.txt` for context
 2. Run `./init.sh` if environment needs setup
 3. Verify existing tests still pass
-4. Pick ONE feature from `feature_list.json` with `"passes": false`
-5. Implement/verify, mark `"passes": true`
-6. Update `claude-progress.txt`, commit
+4. Pick ONE item from `TODO_RALPH.md` backlog
+5. Implement and verify with tests
+6. Update `TODO_RALPH.md`, commit
 
 See `CODING_AGENT.md` for detailed session instructions.
 
@@ -202,6 +202,7 @@ cd claude-multi-agent/option-b-mcp-broker && ls dist/index.js
 # Option A CLI check
 cd claude-multi-agent/option-a-file-based && python coordination.py --help
 
-# Feature count
-cat feature_list.json | python3 -c "import json,sys; d=json.load(sys.stdin); passing=sum(1 for f in d['features'] if f['passes']); print(f'{passing}/{len(d[\"features\"])} passing')"
+# Run all tests
+cd claude-multi-agent/option-c-orchestrator && pytest
+cd claude-multi-agent/option-b-mcp-broker && npm test
 ```

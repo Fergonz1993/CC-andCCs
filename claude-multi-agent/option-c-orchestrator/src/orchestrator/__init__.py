@@ -66,6 +66,15 @@ from .logging_config import (
     JSONFormatter,
     OrchestratorLogger,
     configure_structured_logging,
+    # OBS-004: Correlation ID support
+    generate_correlation_id,
+    get_correlation_id,
+    set_correlation_id,
+    correlation_context,
+    CorrelationIDFilter,
+    CorrelationContextLogger,
+    get_logger,
+    initialize_logging,
 )
 
 # Advanced features
@@ -143,7 +152,36 @@ from .monitor import (
     HealthCheckConfig,
 )
 
-__version__ = "2.1.0"
+# Observability features (OBS-001 through OBS-005)
+# These are optional and require extra dependencies
+try:
+    from .prometheus_metrics import (
+        PrometheusMetrics,
+        MetricsConfig,
+        MetricsServer,
+        start_metrics_server,
+        get_metrics,
+        initialize_metrics,
+    )
+    PROMETHEUS_AVAILABLE = True
+except ImportError:
+    PROMETHEUS_AVAILABLE = False
+
+try:
+    from .tracing import (
+        OrchestratorTracing,
+        TracingConfig,
+        initialize_tracing,
+        get_tracing,
+        get_tracer,
+        shutdown_tracing,
+        is_tracing_available,
+    )
+    OTEL_AVAILABLE = True
+except ImportError:
+    OTEL_AVAILABLE = False
+
+__version__ = "2.2.0"
 __all__ = [
     # Core
     "Task",
@@ -232,4 +270,16 @@ __all__ = [
     "AlertSeverity",
     "AlertType",
     "HealthCheckConfig",
+    # OBS-004: Correlation ID support
+    "generate_correlation_id",
+    "get_correlation_id",
+    "set_correlation_id",
+    "correlation_context",
+    "CorrelationIDFilter",
+    "CorrelationContextLogger",
+    "get_logger",
+    "initialize_logging",
+    # OBS-001/003: Optional observability (check PROMETHEUS_AVAILABLE/OTEL_AVAILABLE)
+    "PROMETHEUS_AVAILABLE",
+    "OTEL_AVAILABLE",
 ]

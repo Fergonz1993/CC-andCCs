@@ -20,6 +20,28 @@ try:
     HYPOTHESIS_AVAILABLE = True
 except ImportError:
     HYPOTHESIS_AVAILABLE = False
+    # Fallback stubs so decorators don't raise when hypothesis isn't installed.
+    def given(*_args, **_kwargs):  # type: ignore[override]
+        def decorator(func):
+            return func
+        return decorator
+
+    class _StubStrategies:
+        def text(self, *args, **kwargs):
+            return None
+
+        def integers(self, *args, **kwargs):
+            return None
+
+    st = _StubStrategies()
+
+    def settings(*_args, **_kwargs):  # type: ignore[override]
+        def decorator(func):
+            return func
+        return decorator
+
+    def assume(*_args, **_kwargs):  # type: ignore[override]
+        return None
 
 
 class TestFuzzingTaskDescriptions:

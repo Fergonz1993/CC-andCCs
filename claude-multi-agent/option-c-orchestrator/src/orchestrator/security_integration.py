@@ -486,7 +486,8 @@ class SecureOrchestrator:
                 event_type=AuditEventType.TASK,
                 agent_id=agent_id or "system",
                 action="task_created",
-                task_id=task.id,
+                resource_type="task",
+                resource_id=task.id,
                 details={"priority": priority, "encrypted": encrypt},
             )
 
@@ -526,7 +527,8 @@ class SecureOrchestrator:
                 event_type=AuditEventType.TASK,
                 agent_id=agent_id,
                 action="task_claimed",
-                task_id=task.id,
+                resource_type="task",
+                resource_id=task.id,
                 details={},
             )
 
@@ -560,7 +562,8 @@ class SecureOrchestrator:
                 event_type=AuditEventType.TASK,
                 agent_id=agent_id or "unknown",
                 action="task_completed" if success else "task_complete_failed",
-                task_id=task_id,
+                resource_type="task",
+                resource_id=task_id,
                 details={"success": success},
             )
 
@@ -590,7 +593,8 @@ class SecureOrchestrator:
                 event_type=AuditEventType.TASK,
                 agent_id=agent_id or "unknown",
                 action="task_failed",
-                task_id=task_id,
+                resource_type="task",
+                resource_id=task_id,
                 details={"error": error[:200]},
             )
 
@@ -888,7 +892,7 @@ class SecureOrchestrator:
             # Save encrypted state
             import json
             state_json = json.dumps(
-                self._orchestrator.state.model_dump(),
+                self._orchestrator.state.model_dump(mode="json"),
                 indent=2,
                 default=str,
             )

@@ -28,6 +28,23 @@ dev = [
 sandbox = [
     "psutil>=5.9.0",  # For resource monitoring in task sandboxing (adv-c-009)
 ]
+# OBS-001: Prometheus metrics exporter
+prometheus = [
+    "prometheus-client>=0.17.0",
+]
+# OBS-003: OpenTelemetry tracing
+opentelemetry = [
+    "opentelemetry-api>=1.20.0",
+    "opentelemetry-sdk>=1.20.0",
+    "opentelemetry-exporter-otlp>=1.20.0",
+]
+# All observability features
+observability = [
+    "prometheus-client>=0.17.0",
+    "opentelemetry-api>=1.20.0",
+    "opentelemetry-sdk>=1.20.0",
+    "opentelemetry-exporter-otlp>=1.20.0",
+]
 
 [project.scripts]
 orchestrate = "orchestrator.cli:app"

@@ -1,0 +1,71 @@
+# CODEOWNERS for Claude Multi-Agent Coordination System
+#
+# This file defines code ownership for automatic review assignment.
+# When a PR changes files matching a pattern, the corresponding owners
+# will be automatically requested for review.
+#
+# Format: <pattern> <owner1> [<owner2> ...]
+# See: https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/about-code-owners
+
+# =============================================================================
+# Default owners (fallback for any file not matched below)
+# =============================================================================
+*                                           @fernandogonzalez
+
+# =============================================================================
+# Option A: File-Based Coordination (Python)
+# =============================================================================
+/claude-multi-agent/option-a-file-based/    @fernandogonzalez
+
+# =============================================================================
+# Option B: MCP Broker (TypeScript/Node.js)
+# =============================================================================
+/claude-multi-agent/option-b-mcp-broker/    @fernandogonzalez
+
+# =============================================================================
+# Option C: Orchestrator (Python)
+# =============================================================================
+/claude-multi-agent/option-c-orchestrator/  @fernandogonzalez
+
+# =============================================================================
+# Shared Modules (cross-cutting utilities)
+# =============================================================================
+/claude-multi-agent/shared/                 @fernandogonzalez
+/claude-multi-agent/shared/security/        @fernandogonzalez
+/claude-multi-agent/shared/reliability/     @fernandogonzalez
+
+# =============================================================================
+# Documentation
+# =============================================================================
+/docs/                                      @fernandogonzalez
+*.md                                        @fernandogonzalez
+/claude-multi-agent/README.md               @fernandogonzalez
+
+# =============================================================================
+# CI/CD and Infrastructure
+# =============================================================================
+/.github/                                   @fernandogonzalez
+/claude-multi-agent/deployment/             @fernandogonzalez
+Dockerfile*                                 @fernandogonzalez
+docker-compose*.yml                         @fernandogonzalez
+
+# =============================================================================
+# Scripts and Development Tools
+# =============================================================================
+/scripts/                                   @fernandogonzalez
+/init.sh                                    @fernandogonzalez
+ralph_config.json                           @fernandogonzalez
+
+# =============================================================================
+# Test Files
+# =============================================================================
+/claude-multi-agent/tests/                  @fernandogonzalez
+**/tests/                                   @fernandogonzalez
+**/__tests__/                               @fernandogonzalez
+
+# =============================================================================
+# Configuration Files (require extra review)
+# =============================================================================
+pyproject.toml                              @fernandogonzalez
+package.json                                @fernandogonzalez
+tsconfig.json                               @fernandogonzalez

@@ -1,0 +1,160 @@
+# Claude Multi-Agent Coordination Stack
+# Docker Compose configuration for full-stack deployment
+#
+# Usage:
+#   docker-compose up -d              # Start all services
+#   docker-compose up -d mcp-broker   # Start only MCP broker
+#   docker-compose logs -f            # Follow logs
+#   docker-compose down               # Stop all services
+#
+# Profiles:
+#   docker-compose --profile full up -d    # Include Redis for state sharing
+
+# =============================================================================
+# Shared configuration
+# =============================================================================
+x-common-env: &common-env
+  TZ: UTC
+  LOG_LEVEL: info
+
+x-healthcheck-defaults: &healthcheck-defaults
+  interval: 30s
+  timeout: 10s
+  retries: 3
+  start_period: 10s
+
+# =============================================================================
+# Services
+# =============================================================================
+services:
+  # ---------------------------------------------------------------------------
+  # Option B: MCP Broker (TypeScript)
+  # ---------------------------------------------------------------------------
+  mcp-broker:
+    build:
+      context: ./option-b-mcp-broker
+      dockerfile: Dockerfile
+    image: claude-mcp-broker:latest
+    container_name: claude-mcp-broker
+    restart: unless-stopped
+    ports:
+      - "${MCP_PORT:-8081}:8081"
+    environment:
+      <<: *common-env
+      NODE_ENV: production
+      COORDINATION_DIR: /app/.coordination
+      MCP_SERVER_PORT: "8081"
+      # Redis connection (when using full profile)
+      REDIS_URL: ${REDIS_URL:-redis://redis:6379}
+    volumes:
+      - coordination-data:/app/.coordination
+      - ./shared:/app/shared:ro
+    networks:
+      - coordination-net
+    healthcheck:
+      <<: *healthcheck-defaults
+      test: ["CMD", "node", "-e", "require('fs').accessSync('./dist/index.js')"]
+    depends_on:
+      redis:
+        condition: service_started
+        required: false
+    labels:
+      - "com.claude.service=mcp-broker"
+      - "com.claude.version=1.0.0"
+
+  # ---------------------------------------------------------------------------
+  # Option C: Python Orchestrator
+  # ---------------------------------------------------------------------------
+  orchestrator:
+    build:
+      context: ./option-c-orchestrator
+      dockerfile: Dockerfile
+    image: claude-orchestrator:latest
+    container_name: claude-orchestrator
+    restart: unless-stopped
+    ports:
+      - "${ORCHESTRATOR_PORT:-8080}:8080"
+    environment:
+      <<: *common-env
+      PYTHONUNBUFFERED: "1"
+      COORDINATION_DIR: /app/.coordination
+      ORCHESTRATOR_MAX_WORKERS: "${ORCHESTRATOR_MAX_WORKERS:-3}"
+      ORCHESTRATOR_TASK_TIMEOUT: "${ORCHESTRATOR_TASK_TIMEOUT:-600}"
+      ORCHESTRATOR_MAX_ATTEMPTS: "${ORCHESTRATOR_MAX_ATTEMPTS:-3}"
+      CLAUDE_MODEL: "${CLAUDE_MODEL:-claude-sonnet-4-20250514}"
+      # Redis connection (when using full profile)
+      REDIS_URL: ${REDIS_URL:-redis://redis:6379}
+    volumes:
+      - coordination-data:/app/.coordination
+      - ./shared:/app/shared:ro
+      # Mount working directory for orchestrated tasks
+      - ${WORK_DIR:-.}:/workspace:rw
+    networks:
+      - coordination-net
+    healthcheck:
+      <<: *healthcheck-defaults
+      test: ["CMD", "python", "-c", "from orchestrator import Orchestrator; print('ok')"]
+    depends_on:
+      redis:
+        condition: service_started
+        required: false
+    # Override default command to keep container running for CLI usage
+    command: ["--help"]
+    labels:
+      - "com.claude.service=orchestrator"
+      - "com.claude.version=2.1.0"
+
+  # ---------------------------------------------------------------------------
+  # Redis (Optional - for future distributed state sharing)
+  # Enabled with: docker-compose --profile full up -d
+  # ---------------------------------------------------------------------------
+  redis:
+    image: redis:7-alpine
+    container_name: claude-redis
+    restart: unless-stopped
+    profiles:
+      - full
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    environment:
+      <<: *common-env
+    volumes:
+      - redis-data:/data
+    networks:
+      - coordination-net
+    healthcheck:
+      <<: *healthcheck-defaults
+      test: ["CMD", "redis-cli", "ping"]
+    command: >
+      redis-server
+      --appendonly yes
+      --maxmemory 256mb
+      --maxmemory-policy allkeys-lru
+    labels:
+      - "com.claude.service=redis"
+      - "com.claude.version=7"
+
+# =============================================================================
+# Networks
+# =============================================================================
+networks:
+  coordination-net:
+    name: claude-coordination-network
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.28.0.0/16
+
+# =============================================================================
+# Volumes
+# =============================================================================
+volumes:
+  # Shared coordination state (tasks, discoveries, logs)
+  coordination-data:
+    name: claude-coordination-data
+    driver: local
+
+  # Redis persistence (when using full profile)
+  redis-data:
+    name: claude-redis-data
+    driver: local

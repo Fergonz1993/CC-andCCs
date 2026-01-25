@@ -1,0 +1,228 @@
+# Prometheus alerting rules for Claude Multi-Agent Orchestrator (OBS-005)
+#
+# These rules monitor critical orchestrator metrics and trigger alerts
+# when thresholds are exceeded.
+#
+# Runbook: https://github.com/your-org/claude-multi-agent/wiki/Runbooks
+
+groups:
+  - name: orchestrator.tasks
+    rules:
+      # High task queue depth alert
+      # Triggers when tasks are piling up faster than agents can process them
+      - alert: HighTaskQueueDepth
+        expr: sum(orchestrator_task_queue_depth) > 50
+        for: 5m
+        labels:
+          severity: warning
+          component: orchestrator
+          category: queue
+        annotations:
+          summary: "High task queue depth"
+          description: "Task queue depth is {{ $value }} (threshold: 50). Tasks may be piling up faster than workers can process them."
+          runbook_url: "https://github.com/your-org/claude-multi-agent/wiki/Runbooks#high-task-queue-depth"
+          dashboard_url: "/d/orchestrator-coordination/claude-multi-agent-orchestrator?viewPanel=7"
+
+      - alert: CriticalTaskQueueDepth
+        expr: sum(orchestrator_task_queue_depth) > 100
+        for: 2m
+        labels:
+          severity: critical
+          component: orchestrator
+          category: queue
+        annotations:
+          summary: "Critical task queue depth"
+          description: "Task queue depth is {{ $value }} (threshold: 100). Immediate action required - system may be overwhelmed."
+          runbook_url: "https://github.com/your-org/claude-multi-agent/wiki/Runbooks#critical-task-queue-depth"
+          dashboard_url: "/d/orchestrator-coordination/claude-multi-agent-orchestrator?viewPanel=7"
+
+      # Task failure rate alerts
+      - alert: HighTaskFailureRate
+        expr: |
+          (
+            sum(rate(orchestrator_tasks_total{status="failed"}[5m]))
+            /
+            sum(rate(orchestrator_tasks_total[5m]))
+          ) > 0.1
+        for: 5m
+        labels:
+          severity: warning
+          component: orchestrator
+          category: reliability
+        annotations:
+          summary: "High task failure rate"
+          description: "Task failure rate is {{ $value | humanizePercentage }} over the last 5 minutes (threshold: 10%)."
+          runbook_url: "https://github.com/your-org/claude-multi-agent/wiki/Runbooks#high-task-failure-rate"
+          dashboard_url: "/d/orchestrator-coordination/claude-multi-agent-orchestrator?viewPanel=19"
+
+      - alert: CriticalTaskFailureRate
+        expr: |
+          (
+            sum(rate(orchestrator_tasks_total{status="failed"}[5m]))
+            /
+            sum(rate(orchestrator_tasks_total[5m]))
+          ) > 0.25
+        for: 2m
+        labels:
+          severity: critical
+          component: orchestrator
+          category: reliability
+        annotations:
+          summary: "Critical task failure rate"
+          description: "Task failure rate is {{ $value | humanizePercentage }} over the last 5 minutes (threshold: 25%). System may be experiencing major issues."
+          runbook_url: "https://github.com/your-org/claude-multi-agent/wiki/Runbooks#critical-task-failure-rate"
+          dashboard_url: "/d/orchestrator-coordination/claude-multi-agent-orchestrator?viewPanel=19"
+
+      # Task duration alerts
+      - alert: SlowTaskExecution
+        expr: histogram_quantile(0.95, sum(rate(orchestrator_task_duration_seconds_bucket[5m])) by (le)) > 600
+        for: 10m
+        labels:
+          severity: warning
+          component: orchestrator
+          category: performance
+        annotations:
+          summary: "Slow task execution detected"
+          description: "95th percentile task duration is {{ $value | humanizeDuration }} (threshold: 10 minutes). Tasks may be taking longer than expected."
+          runbook_url: "https://github.com/your-org/claude-multi-agent/wiki/Runbooks#slow-task-execution"
+          dashboard_url: "/d/orchestrator-coordination/claude-multi-agent-orchestrator?viewPanel=12"
+
+      # Stalled tasks alert
+      - alert: StalledTasksInQueue
+        expr: |
+          (
+            time() - max(orchestrator_tasks_created_total)
+            > 300
+          ) and (sum(orchestrator_task_queue_depth) > 0)
+        for: 10m
+        labels:
+          severity: warning
+          component: orchestrator
+          category: queue
+        annotations:
+          summary: "Tasks may be stalled in queue"
+          description: "No new tasks have been created in 5+ minutes but queue is not empty. Tasks may be stuck."
+          runbook_url: "https://github.com/your-org/claude-multi-agent/wiki/Runbooks#stalled-tasks"
+
+  - name: orchestrator.agents
+    rules:
+      # Agent heartbeat timeout alerts
+      - alert: AgentHeartbeatTimeout
+        expr: |
+          (time() - orchestrator_agent_heartbeat_timestamp_seconds) > 60
+        for: 1m
+        labels:
+          severity: warning
+          component: orchestrator
+          category: agent
+        annotations:
+          summary: "Agent heartbeat timeout"
+          description: "Agent {{ $labels.agent_id }} has not sent a heartbeat in {{ $value | humanizeDuration }}. Agent may be unresponsive."
+          runbook_url: "https://github.com/your-org/claude-multi-agent/wiki/Runbooks#agent-heartbeat-timeout"
+          dashboard_url: "/d/orchestrator-coordination/claude-multi-agent-orchestrator?viewPanel=17"
+
+      - alert: AgentHeartbeatCritical
+        expr: |
+          (time() - orchestrator_agent_heartbeat_timestamp_seconds) > 180
+        for: 1m
+        labels:
+          severity: critical
+          component: orchestrator
+          category: agent
+        annotations:
+          summary: "Critical agent heartbeat timeout"
+          description: "Agent {{ $labels.agent_id }} has not sent a heartbeat in {{ $value | humanizeDuration }}. Agent is likely dead and should be restarted."
+          runbook_url: "https://github.com/your-org/claude-multi-agent/wiki/Runbooks#critical-agent-heartbeat-timeout"
+          dashboard_url: "/d/orchestrator-coordination/claude-multi-agent-orchestrator?viewPanel=17"
+
+      # No active agents alert
+      - alert: NoActiveAgents
+        expr: sum(orchestrator_agent_count{status="active"}) == 0
+        for: 2m
+        labels:
+          severity: critical
+          component: orchestrator
+          category: agent
+        annotations:
+          summary: "No active agents"
+          description: "There are no active agents registered with the orchestrator. Tasks cannot be processed."
+          runbook_url: "https://github.com/your-org/claude-multi-agent/wiki/Runbooks#no-active-agents"
+          dashboard_url: "/d/orchestrator-coordination/claude-multi-agent-orchestrator?viewPanel=15"
+
+      # Low agent count alert
+      - alert: LowActiveAgentCount
+        expr: sum(orchestrator_agent_count{status="active"}) < 2
+        for: 5m
+        labels:
+          severity: warning
+          component: orchestrator
+          category: agent
+        annotations:
+          summary: "Low active agent count"
+          description: "Only {{ $value }} active agent(s) available. Consider scaling up for better throughput."
+          runbook_url: "https://github.com/your-org/claude-multi-agent/wiki/Runbooks#low-agent-count"
+
+      # Agent with high failure rate
+      - alert: AgentHighFailureRate
+        expr: |
+          (
+            sum(rate(orchestrator_agent_tasks_failed_total[5m])) by (agent_id)
+            /
+            (sum(rate(orchestrator_agent_tasks_completed_total[5m])) by (agent_id) + sum(rate(orchestrator_agent_tasks_failed_total[5m])) by (agent_id))
+          ) > 0.3
+        for: 5m
+        labels:
+          severity: warning
+          component: orchestrator
+          category: agent
+        annotations:
+          summary: "Agent has high failure rate"
+          description: "Agent {{ $labels.agent_id }} has a failure rate of {{ $value | humanizePercentage }}. Consider investigating or replacing this agent."
+          runbook_url: "https://github.com/your-org/claude-multi-agent/wiki/Runbooks#agent-high-failure-rate"
+
+  - name: orchestrator.system
+    rules:
+      # Error rate alerts
+      - alert: HighErrorRate
+        expr: sum(rate(orchestrator_errors_total[5m])) > 0.1
+        for: 5m
+        labels:
+          severity: warning
+          component: orchestrator
+          category: errors
+        annotations:
+          summary: "High orchestrator error rate"
+          description: "Orchestrator is experiencing {{ $value | humanize }} errors per second. Check logs for details."
+          runbook_url: "https://github.com/your-org/claude-multi-agent/wiki/Runbooks#high-error-rate"
+          dashboard_url: "/d/orchestrator-coordination/claude-multi-agent-orchestrator?viewPanel=20"
+
+      # Throughput drop alert
+      - alert: ThroughputDrop
+        expr: |
+          sum(rate(orchestrator_tasks_total{status="done"}[5m]))
+          <
+          (sum(rate(orchestrator_tasks_total{status="done"}[1h])) * 0.5)
+        for: 10m
+        labels:
+          severity: warning
+          component: orchestrator
+          category: performance
+        annotations:
+          summary: "Significant throughput drop"
+          description: "Task completion throughput has dropped by more than 50% compared to the hourly average."
+          runbook_url: "https://github.com/your-org/claude-multi-agent/wiki/Runbooks#throughput-drop"
+          dashboard_url: "/d/orchestrator-coordination/claude-multi-agent-orchestrator?viewPanel=9"
+
+      # Long queue wait time
+      - alert: LongQueueWaitTime
+        expr: histogram_quantile(0.95, sum(rate(orchestrator_task_wait_time_seconds_bucket[5m])) by (le)) > 300
+        for: 5m
+        labels:
+          severity: warning
+          component: orchestrator
+          category: queue
+        annotations:
+          summary: "Long queue wait times"
+          description: "95th percentile queue wait time is {{ $value | humanizeDuration }}. Consider adding more workers."
+          runbook_url: "https://github.com/your-org/claude-multi-agent/wiki/Runbooks#long-queue-wait-time"
+          dashboard_url: "/d/orchestrator-coordination/claude-multi-agent-orchestrator?viewPanel=13"
