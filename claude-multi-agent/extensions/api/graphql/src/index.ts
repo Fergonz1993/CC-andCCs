@@ -15,6 +15,20 @@ import { config } from "dotenv";
 
 config();
 
+const isProduction = process.env.NODE_ENV === "production";
+const coordinationApiKey = process.env.COORDINATION_API_KEY || "";
+const corsOrigins = (process.env.CORS_ALLOWED_ORIGINS || "")
+  .split(",")
+  .map((origin) => origin.trim())
+  .filter(Boolean);
+
+if (isProduction && !coordinationApiKey) {
+  throw new Error("COORDINATION_API_KEY is required in production");
+}
+if (isProduction && corsOrigins.length === 0) {
+  throw new Error("CORS_ALLOWED_ORIGINS is required in production");
+}
+
 // PubSub for subscriptions
 const pubsub = new PubSub();
 
@@ -46,6 +60,7 @@ const typeDefs = `#graphql
     description: String!
     status: TaskStatus!
     priority: Int!
+    claimed_by: String
     assigned_to: String
     dependencies: [String!]
     created_at: String
@@ -106,6 +121,7 @@ const typeDefs = `#graphql
     description: String
     priority: Int
     status: TaskStatus
+    claimed_by: String
     assigned_to: String
     dependencies: [String!]
     tags: [String!]
@@ -134,6 +150,7 @@ const typeDefs = `#graphql
   input TaskFilter {
     status: TaskStatus
     priority: Int
+    claimed_by: String
     assigned_to: String
     tags: [String!]
   }
@@ -206,12 +223,30 @@ class DataService {
     }
   }
 
+  private writeJsonAtomic(filePath: string, data: unknown): void {
+    this.ensureDir(path.dirname(filePath));
+    const tempPath = `${filePath}.${process.pid}.${Date.now()}.tmp`;
+    fs.writeFileSync(tempPath, JSON.stringify(data, null, 2));
+    fs.renameSync(tempPath, filePath);
+  }
+
+  private normalizeTask(task: any): any {
+    // Preserve both assigned_to and claimed_by for compatibility with file-based orchestrator
+    const claimed_by = task.claimed_by ?? task.assigned_to ?? null;
+    return { ...task, claimed_by, assigned_to: claimed_by };
+  }
+
   // Tasks
   getTasks(): any[] {
     const tasksPath = path.join(this.coordinationDir, "tasks.json");
     if (!fs.existsSync(tasksPath)) return [];
     try {
-      return JSON.parse(fs.readFileSync(tasksPath, "utf-8")).tasks || [];
+      const tasks = JSON.parse(fs.readFileSync(tasksPath, "utf-8")).tasks || [];
+      const normalized = tasks.map((task: any) => this.normalizeTask(task));
+      return normalized.map((task: any) => ({
+        ...task,
+        assigned_to: task.claimed_by ?? task.assigned_to,
+      }));
     } catch {
       return [];
     }
@@ -220,10 +255,11 @@ class DataService {
   saveTasks(tasks: any[]): void {
     this.ensureDir(this.coordinationDir);
     const tasksPath = path.join(this.coordinationDir, "tasks.json");
-    fs.writeFileSync(
-      tasksPath,
-      JSON.stringify({ tasks, updated_at: new Date().toISOString() }, null, 2),
-    );
+    const normalized = tasks.map((task: any) => this.normalizeTask(task));
+    this.writeJsonAtomic(tasksPath, {
+      tasks: normalized,
+      updated_at: new Date().toISOString(),
+    });
   }
 
   getTask(id: string): any {
@@ -255,6 +291,8 @@ class DataService {
     tasks[index] = {
       ...tasks[index],
       ...input,
+      claimed_by:
+        input.claimed_by ?? input.assigned_to ?? tasks[index].claimed_by,
       updated_at: new Date().toISOString(),
     };
     this.saveTasks(tasks);
@@ -275,10 +313,13 @@ class DataService {
 
   // Workers
   getWorkers(): any[] {
+    const agentsPath = path.join(this.coordinationDir, "agents.json");
     const workersPath = path.join(this.coordinationDir, "workers.json");
-    if (!fs.existsSync(workersPath)) return [];
+    const filePath = fs.existsSync(agentsPath) ? agentsPath : workersPath;
+    if (!fs.existsSync(filePath)) return [];
     try {
-      return JSON.parse(fs.readFileSync(workersPath, "utf-8")).workers || [];
+      const parsed = JSON.parse(fs.readFileSync(filePath, "utf-8"));
+      return parsed.agents || parsed.workers || [];
     } catch {
       return [];
     }
@@ -286,8 +327,8 @@ class DataService {
 
   saveWorkers(workers: any[]): void {
     this.ensureDir(this.coordinationDir);
-    const workersPath = path.join(this.coordinationDir, "workers.json");
-    fs.writeFileSync(workersPath, JSON.stringify({ workers }, null, 2));
+    const agentsPath = path.join(this.coordinationDir, "agents.json");
+    this.writeJsonAtomic(agentsPath, { agents: workers });
   }
 
   getWorker(id: string): any {
@@ -336,7 +377,7 @@ class DataService {
   saveDiscoveries(discoveries: any[]): void {
     this.ensureDir(this.coordinationDir);
     const discoveriesPath = path.join(this.coordinationDir, "discoveries.json");
-    fs.writeFileSync(discoveriesPath, JSON.stringify({ discoveries }, null, 2));
+    this.writeJsonAtomic(discoveriesPath, { discoveries });
   }
 
   addDiscovery(input: any): any {
@@ -412,6 +453,10 @@ class DataService {
 // Create resolvers
 function createResolvers(service: DataService) {
   return {
+    Task: {
+      claimed_by: (task: any) => task.claimed_by ?? task.assigned_to ?? null,
+      assigned_to: (task: any) => task.claimed_by ?? task.assigned_to ?? null,
+    },
     Query: {
       tasks: (_: any, { filter }: any) => {
         let tasks = service.getTasks();
@@ -422,8 +467,9 @@ function createResolvers(service: DataService) {
           if (filter.priority) {
             tasks = tasks.filter((t) => t.priority === filter.priority);
           }
-          if (filter.assigned_to) {
-            tasks = tasks.filter((t) => t.assigned_to === filter.assigned_to);
+          const claimedBy = filter.claimed_by || filter.assigned_to;
+          if (claimedBy) {
+            tasks = tasks.filter((t) => t.claimed_by === claimedBy);
           }
           if (filter.tags && filter.tags.length > 0) {
             tasks = tasks.filter(
@@ -470,7 +516,7 @@ function createResolvers(service: DataService) {
         if (!task || task.status !== "available") return null;
         return service.updateTask(id, {
           status: "claimed",
-          assigned_to: workerId,
+          claimed_by: workerId,
         });
       },
       startTask: (_: any, { id }: any) =>
@@ -523,6 +569,46 @@ function createResolvers(service: DataService) {
   };
 }
 
+function extractApiKeyFromHeaders(
+  headers: Record<string, string | string[] | undefined>,
+): string | undefined {
+  const authHeader =
+    typeof headers.authorization === "string"
+      ? headers.authorization
+      : undefined;
+  if (authHeader && authHeader.toLowerCase().startsWith("bearer ")) {
+    return authHeader.slice(7).trim();
+  }
+  const apiKeyHeader = headers["x-api-key"];
+  if (typeof apiKeyHeader === "string" && apiKeyHeader.trim()) {
+    return apiKeyHeader.trim();
+  }
+  return undefined;
+}
+
+function requireAuthExpress(
+  req: express.Request,
+  res: express.Response,
+  next: express.NextFunction,
+): void {
+  if (!coordinationApiKey) {
+    next();
+    return;
+  }
+  if (req.path === "/health") {
+    next();
+    return;
+  }
+  const apiKey = extractApiKeyFromHeaders(
+    req.headers as Record<string, string | string[] | undefined>,
+  );
+  if (!apiKey || apiKey !== coordinationApiKey) {
+    res.status(401).json({ error: "Unauthorized" });
+    return;
+  }
+  next();
+}
+
 // Create and start server
 export async function createGraphQLServer(
   coordinationDir: string,
@@ -542,7 +628,38 @@ export async function createGraphQLServer(
     path: "/graphql",
   });
 
-  const serverCleanup = useServer({ schema }, wsServer);
+  const serverCleanup = useServer(
+    {
+      schema,
+      onConnect: (ctx) => {
+        if (!coordinationApiKey) {
+          return true;
+        }
+        const headers = ctx.extra.request.headers as Record<
+          string,
+          string | string[] | undefined
+        >;
+        const connectionParams = ctx.connectionParams as Record<
+          string,
+          unknown
+        >;
+        const paramToken =
+          (typeof connectionParams?.Authorization === "string" &&
+            connectionParams.Authorization) ||
+          (typeof connectionParams?.authorization === "string" &&
+            connectionParams.authorization) ||
+          (typeof connectionParams?.api_key === "string" &&
+            connectionParams.api_key) ||
+          undefined;
+        const apiKey = paramToken || extractApiKeyFromHeaders(headers);
+        if (!apiKey || apiKey !== coordinationApiKey) {
+          return false;
+        }
+        return true;
+      },
+    },
+    wsServer,
+  );
 
   const server = new ApolloServer({
     schema,
@@ -564,8 +681,11 @@ export async function createGraphQLServer(
 
   app.use(
     "/graphql",
-    cors<cors.CorsRequest>(),
+    cors<cors.CorsRequest>(
+      corsOrigins.length ? { origin: corsOrigins } : undefined,
+    ),
     express.json(),
+    requireAuthExpress,
     expressMiddleware(server),
   );
 

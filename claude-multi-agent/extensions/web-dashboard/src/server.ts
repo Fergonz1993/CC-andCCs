@@ -9,15 +9,84 @@ import { config } from "dotenv";
 
 config();
 
+const isProduction = process.env.NODE_ENV === "production";
+const dashboardApiKey = process.env.COORDINATION_API_KEY || "";
+const corsOrigins = (process.env.CORS_ALLOWED_ORIGINS || "")
+  .split(",")
+  .map((origin) => origin.trim())
+  .filter(Boolean);
+
+if (isProduction && !dashboardApiKey) {
+  throw new Error("COORDINATION_API_KEY is required in production");
+}
+if (isProduction && corsOrigins.length === 0) {
+  throw new Error("CORS_ALLOWED_ORIGINS is required in production");
+}
+
 const app = express();
 const port = parseInt(process.env.DASHBOARD_PORT || "3004");
 const coordinationDir = process.env.COORDINATION_DIR || ".coordination";
 
-app.use(cors());
-app.use(express.json());
+function extractApiKey(
+  headers: Record<string, string | string[] | undefined>,
+): string | undefined {
+  const authHeader = headers.authorization;
+  if (
+    typeof authHeader === "string" &&
+    authHeader.toLowerCase().startsWith("bearer ")
+  ) {
+    return authHeader.slice(7).trim();
+  }
+  const apiKeyHeader = headers["x-api-key"];
+  if (typeof apiKeyHeader === "string" && apiKeyHeader.trim()) {
+    return apiKeyHeader.trim();
+  }
+  return undefined;
+}
 
-// Serve static files
-app.use(express.static(path.join(__dirname, "../public")));
+function requireAuth(
+  req: express.Request,
+  res: express.Response,
+  next: express.NextFunction,
+): void {
+  if (!dashboardApiKey) {
+    next();
+    return;
+  }
+  if (!req.path.startsWith("/api")) {
+    next();
+    return;
+  }
+  const apiKey = extractApiKey(
+    req.headers as Record<string, string | string[] | undefined>,
+  );
+  if (!apiKey || apiKey !== dashboardApiKey) {
+    res.status(401).json({ error: "Unauthorized" });
+    return;
+  }
+  next();
+}
+
+app.use(cors(corsOrigins.length ? { origin: corsOrigins } : undefined));
+app.use(express.json());
+app.use(requireAuth);
+
+// Serve static files (excluding index.html which is served dynamically)
+app.use(express.static(path.join(__dirname, "../public"), { index: false }));
+
+// Serve index.html dynamically with injected API key for authenticated dashboard access
+app.get("/", (_req, res) => {
+  const indexPath = path.join(__dirname, "../public/index.html");
+  if (!fs.existsSync(indexPath)) {
+    res.status(404).send("Dashboard not found");
+    return;
+  }
+  let html = fs.readFileSync(indexPath, "utf-8");
+  // Inject API key into the page so the client can authenticate requests
+  const configScript = `<script>window.__DASHBOARD_CONFIG__ = { apiKey: ${JSON.stringify(dashboardApiKey || "")} };</script>`;
+  html = html.replace("</head>", `${configScript}</head>`);
+  res.type("html").send(html);
+});
 
 // Data loading functions
 function loadTasks(): any[] {
@@ -31,10 +100,13 @@ function loadTasks(): any[] {
 }
 
 function loadWorkers(): any[] {
+  const agentsPath = path.join(coordinationDir, "agents.json");
   const workersPath = path.join(coordinationDir, "workers.json");
-  if (!fs.existsSync(workersPath)) return [];
+  const filePath = fs.existsSync(agentsPath) ? agentsPath : workersPath;
+  if (!fs.existsSync(filePath)) return [];
   try {
-    return JSON.parse(fs.readFileSync(workersPath, "utf-8")).workers || [];
+    const parsed = JSON.parse(fs.readFileSync(filePath, "utf-8"));
+    return parsed.agents || parsed.workers || [];
   } catch {
     return [];
   }
@@ -94,6 +166,12 @@ app.get("/api/discoveries", (req, res) => {
 
 // Serve the dashboard HTML
 app.get("/", (req, res) => {
+  const indexPath = path.join(__dirname, "../public/index.html");
+  const bundlePath = path.join(__dirname, "../public/dashboard.js");
+  if (fs.existsSync(indexPath) && fs.existsSync(bundlePath)) {
+    res.sendFile(indexPath);
+    return;
+  }
   res.send(getDashboardHTML());
 });
 
@@ -104,7 +182,21 @@ const server = createServer(app);
 const wss = new WebSocketServer({ server, path: "/ws" });
 const clients = new Set<WebSocket>();
 
-wss.on("connection", (ws) => {
+wss.on("connection", (ws, req) => {
+  if (dashboardApiKey) {
+    // Check headers first, then query param for browser WebSocket compatibility
+    let apiKey = extractApiKey(
+      req.headers as Record<string, string | string[] | undefined>,
+    );
+    if (!apiKey && req.url) {
+      const url = new URL(req.url, `http://${req.headers.host}`);
+      apiKey = url.searchParams.get("token") || undefined;
+    }
+    if (!apiKey || apiKey !== dashboardApiKey) {
+      ws.close(1008, "Unauthorized");
+      return;
+    }
+  }
   clients.add(ws);
   console.log("Client connected");
 
@@ -141,6 +233,7 @@ function broadcast(message: any): void {
 const watcher = chokidar.watch(
   [
     path.join(coordinationDir, "tasks.json"),
+    path.join(coordinationDir, "agents.json"),
     path.join(coordinationDir, "workers.json"),
     path.join(coordinationDir, "discoveries.json"),
   ],
@@ -155,7 +248,10 @@ watcher.on("change", (filePath) => {
 
   if (filePath.endsWith("tasks.json")) {
     broadcast({ type: "tasks", data: loadTasks() });
-  } else if (filePath.endsWith("workers.json")) {
+  } else if (
+    filePath.endsWith("agents.json") ||
+    filePath.endsWith("workers.json")
+  ) {
     broadcast({ type: "workers", data: loadWorkers() });
   } else if (filePath.endsWith("discoveries.json")) {
     broadcast({ type: "discoveries", data: loadDiscoveries() });

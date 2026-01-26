@@ -11,12 +11,56 @@ import { config } from "dotenv";
 
 config();
 
+const isProduction = process.env.NODE_ENV === "production";
+const coordinationApiKey = process.env.COORDINATION_API_KEY || "";
+const corsOrigins = (process.env.CORS_ALLOWED_ORIGINS || "")
+  .split(",")
+  .map((origin) => origin.trim())
+  .filter(Boolean);
+
+if (isProduction && !coordinationApiKey) {
+  throw new Error("COORDINATION_API_KEY is required in production");
+}
+if (isProduction && corsOrigins.length === 0) {
+  throw new Error("CORS_ALLOWED_ORIGINS is required in production");
+}
+
+function extractApiKey(req: Request): string | undefined {
+  const authHeader = req.headers.authorization;
+  if (authHeader && authHeader.toLowerCase().startsWith("bearer ")) {
+    return authHeader.slice(7).trim();
+  }
+  const headerKey = req.headers["x-api-key"];
+  if (typeof headerKey === "string" && headerKey.trim()) {
+    return headerKey.trim();
+  }
+  return undefined;
+}
+
+function requireAuth(req: Request, res: Response, next: NextFunction): void {
+  if (!coordinationApiKey) {
+    next();
+    return;
+  }
+  if (req.path === "/health") {
+    next();
+    return;
+  }
+  const apiKey = extractApiKey(req);
+  if (!apiKey || apiKey !== coordinationApiKey) {
+    res.status(401).json({ success: false, error: "Unauthorized" });
+    return;
+  }
+  next();
+}
+
 // Interfaces
 interface Task {
   id: string;
   description: string;
   status: "available" | "claimed" | "in_progress" | "done" | "failed";
   priority: number;
+  claimed_by?: string;
   assigned_to?: string;
   dependencies?: string[];
   created_at?: string;
@@ -69,6 +113,19 @@ class CoordinationService {
     }
   }
 
+  private writeJsonAtomic(filePath: string, data: unknown): void {
+    this.ensureDir(path.dirname(filePath));
+    const tempPath = `${filePath}.${process.pid}.${Date.now()}.tmp`;
+    fs.writeFileSync(tempPath, JSON.stringify(data, null, 2));
+    fs.renameSync(tempPath, filePath);
+  }
+
+  private normalizeTask(task: Task): Task {
+    // Preserve both assigned_to and claimed_by for compatibility with file-based orchestrator
+    const claimed_by = task.claimed_by ?? task.assigned_to ?? null;
+    return { ...task, claimed_by, assigned_to: claimed_by };
+  }
+
   // Tasks
   getTasks(): Task[] {
     const tasksPath = path.join(this.coordinationDir, "tasks.json");
@@ -77,7 +134,12 @@ class CoordinationService {
     }
     try {
       const content = fs.readFileSync(tasksPath, "utf-8");
-      return JSON.parse(content).tasks || [];
+      const tasks = JSON.parse(content).tasks || [];
+      const normalized = tasks.map((task: Task) => this.normalizeTask(task));
+      return normalized.map((task: Task) => ({
+        ...task,
+        assigned_to: task.claimed_by ?? task.assigned_to,
+      }));
     } catch {
       return [];
     }
@@ -86,10 +148,11 @@ class CoordinationService {
   saveTasks(tasks: Task[]): void {
     this.ensureDir(this.coordinationDir);
     const tasksPath = path.join(this.coordinationDir, "tasks.json");
-    fs.writeFileSync(
-      tasksPath,
-      JSON.stringify({ tasks, updated_at: new Date().toISOString() }, null, 2),
-    );
+    const normalized = tasks.map((task) => this.normalizeTask(task));
+    this.writeJsonAtomic(tasksPath, {
+      tasks: normalized,
+      updated_at: new Date().toISOString(),
+    });
   }
 
   getTask(id: string): Task | undefined {
@@ -120,6 +183,8 @@ class CoordinationService {
     tasks[index] = {
       ...tasks[index],
       ...updates,
+      claimed_by:
+        updates.claimed_by ?? updates.assigned_to ?? tasks[index].claimed_by,
       updated_at: new Date().toISOString(),
     };
     this.saveTasks(tasks);
@@ -142,7 +207,7 @@ class CoordinationService {
 
     return this.updateTask(id, {
       status: "claimed",
-      assigned_to: workerId,
+      claimed_by: workerId,
     });
   }
 
@@ -162,13 +227,16 @@ class CoordinationService {
 
   // Workers
   getWorkers(): Worker[] {
+    const agentsPath = path.join(this.coordinationDir, "agents.json");
     const workersPath = path.join(this.coordinationDir, "workers.json");
-    if (!fs.existsSync(workersPath)) {
+    const filePath = fs.existsSync(agentsPath) ? agentsPath : workersPath;
+    if (!fs.existsSync(filePath)) {
       return [];
     }
     try {
-      const content = fs.readFileSync(workersPath, "utf-8");
-      return JSON.parse(content).workers || [];
+      const content = fs.readFileSync(filePath, "utf-8");
+      const parsed = JSON.parse(content);
+      return parsed.agents || parsed.workers || [];
     } catch {
       return [];
     }
@@ -176,8 +244,8 @@ class CoordinationService {
 
   saveWorkers(workers: Worker[]): void {
     this.ensureDir(this.coordinationDir);
-    const workersPath = path.join(this.coordinationDir, "workers.json");
-    fs.writeFileSync(workersPath, JSON.stringify({ workers }, null, 2));
+    const agentsPath = path.join(this.coordinationDir, "agents.json");
+    this.writeJsonAtomic(agentsPath, { agents: workers });
   }
 
   registerWorker(data: Partial<Worker>): Worker {
@@ -292,6 +360,7 @@ const openApiSpec = {
         parameters: [
           { name: "status", in: "query", schema: { type: "string" } },
           { name: "priority", in: "query", schema: { type: "integer" } },
+          { name: "claimed_by", in: "query", schema: { type: "string" } },
           { name: "assigned_to", in: "query", schema: { type: "string" } },
         ],
         responses: {
@@ -562,9 +631,10 @@ export function createRestApi(coordinationDir: string): express.Application {
 
   // Middleware
   app.use(helmet());
-  app.use(cors());
+  app.use(cors(corsOrigins.length ? { origin: corsOrigins } : undefined));
   app.use(express.json());
   app.use(morgan("combined"));
+  app.use(requireAuth);
 
   // Rate limiting
   const limiter = rateLimit({
@@ -606,9 +676,11 @@ export function createRestApi(coordinationDir: string): express.Application {
       );
     }
 
-    // Filter by assigned_to
-    if (req.query.assigned_to) {
-      tasks = tasks.filter((t) => t.assigned_to === req.query.assigned_to);
+    // Filter by claimed_by / assigned_to (backward compatible)
+    if (req.query.claimed_by || req.query.assigned_to) {
+      const claimedBy = (req.query.claimed_by ||
+        req.query.assigned_to) as string;
+      tasks = tasks.filter((t) => t.claimed_by === claimedBy);
     }
 
     // Sorting

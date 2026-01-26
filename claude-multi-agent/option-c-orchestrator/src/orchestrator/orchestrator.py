@@ -20,8 +20,10 @@ from pathlib import Path
 from typing import Any, Iterator, Optional
 
 from .async_orchestrator import Orchestrator as AsyncOrchestrator
+from .config import DEFAULT_HEARTBEAT_TIMEOUT
 from .metrics import MetricsCollector
 from .models import TaskStatus
+from .planner import CycleDetectedError, TaskDAG
 
 logger = logging.getLogger(__name__)
 
@@ -137,6 +139,9 @@ class FileOrchestrator:
         # Validate no duplicate task IDs (ATOM-107)
         self._validate_no_duplicate_task_ids()
 
+        # Validate no dependency cycles (ATOM-001)
+        self._validate_no_dependency_cycles(self._tasks)
+
         # Ensure files exist
         if not self.tasks_file.exists():
             self._write_json(self.tasks_file, "tasks", self._tasks)
@@ -171,6 +176,66 @@ class FileOrchestrator:
                     seen.add(task_id)
             self._tasks = unique_tasks
             self._save_tasks()
+
+    def _validate_no_dependency_cycles(self, tasks: list[dict[str, Any]]) -> None:
+        """Validate that the task dependency graph has no cycles (ATOM-001)."""
+        dag = TaskDAG()
+        for task in tasks:
+            task_id = task.get("id")
+            if not task_id:
+                continue
+            dependencies = task.get("dependencies", []) or []
+            if not isinstance(dependencies, list):
+                continue
+            dag.add_task(task_id, dependencies=dependencies)
+
+        try:
+            dag.validate()
+        except CycleDetectedError as exc:
+            raise OrchestrationError(
+                f"Dependency cycle detected: {' -> '.join(exc.cycle)}"
+            ) from exc
+
+    def _parse_iso_datetime(self, value: str) -> Optional[datetime]:
+        try:
+            return datetime.fromisoformat(value)
+        except (TypeError, ValueError):
+            return None
+
+    def _requeue_stale_tasks(self, heartbeat_timeout_seconds: int = DEFAULT_HEARTBEAT_TIMEOUT) -> None:
+        """Requeue tasks claimed by stale agents (ATOM-002)."""
+        now = datetime.now()
+        stale_agent_ids: set[str] = set()
+
+        for agent in self._agents:
+            agent_id = agent.get("id", "")
+            last_heartbeat = self._parse_iso_datetime(agent.get("last_heartbeat", ""))
+            if last_heartbeat is None:
+                agent["status"] = AgentStatus.INACTIVE.value
+                if agent_id:
+                    stale_agent_ids.add(agent_id)
+                continue
+
+            elapsed = (now - last_heartbeat).total_seconds()
+            if elapsed > heartbeat_timeout_seconds:
+                agent["status"] = AgentStatus.INACTIVE.value
+                if agent_id:
+                    stale_agent_ids.add(agent_id)
+
+        if not stale_agent_ids:
+            return
+
+        for task in self._tasks:
+            if task.get("assigned_to") in stale_agent_ids and task.get("status") in {
+                TaskStatus.CLAIMED.value,
+                TaskStatus.IN_PROGRESS.value,
+            }:
+                task["status"] = TaskStatus.AVAILABLE.value
+                task["assigned_to"] = None
+                task.pop("claimed_at", None)
+
+        self._save_agents()
+        self._save_tasks()
 
     def _validate_task_schema(self, task: dict[str, Any], task_index: int) -> list[str]:
         """
@@ -284,6 +349,7 @@ class FileOrchestrator:
                 "assigned_to": None,
                 "created_at": datetime.now().isoformat(),
             }
+            self._validate_no_dependency_cycles(self._tasks + [task])
             self._tasks.append(task)
             self._save_tasks()
             self._metrics.record_task_created(task["id"])
@@ -332,6 +398,7 @@ class FileOrchestrator:
                 "assigned_to": None,
                 "created_at": datetime.now().isoformat(),
             }
+            self._validate_no_dependency_cycles(self._tasks + [task])
             self._tasks.append(task)
             self._save_tasks()
             self._metrics.record_task_created(task["id"])
@@ -344,13 +411,16 @@ class FileOrchestrator:
         return list(self._tasks)
 
     def get_available_tasks(self) -> list[dict[str, Any]]:
-        self._load_state()
-        done_ids = {t["id"] for t in self._tasks if t["status"] == TaskStatus.DONE.value}
-        available = [
-            t for t in self._tasks
-            if t["status"] == TaskStatus.AVAILABLE.value and all(dep in done_ids for dep in t.get("dependencies", []))
-        ]
-        return sorted(available, key=lambda t: t.get("priority", 5))
+        # Use file lock since _requeue_stale_tasks writes to disk
+        with self._file_lock():
+            self._load_state()
+            self._requeue_stale_tasks()
+            done_ids = {t["id"] for t in self._tasks if t["status"] == TaskStatus.DONE.value}
+            available = [
+                t for t in self._tasks
+                if t["status"] == TaskStatus.AVAILABLE.value and all(dep in done_ids for dep in t.get("dependencies", []))
+            ]
+            return sorted(available, key=lambda t: t.get("priority", 5))
 
     def claim_task(self, task_id: str, agent_id: str) -> dict[str, Any]:
         """
@@ -362,6 +432,7 @@ class FileOrchestrator:
         with self._file_lock():
             # Re-read state while holding lock to ensure consistency
             self._load_state()
+            self._requeue_stale_tasks()
             task = self.get_task(task_id)
             if task is None:
                 raise OrchestrationError("Task not found")
@@ -480,6 +551,7 @@ class FileOrchestrator:
         agent = self.get_agent(agent_id)
         if not agent:
             raise OrchestrationError("Agent not found")
+        agent["status"] = AgentStatus.ACTIVE.value
         agent["last_heartbeat"] = datetime.now().isoformat()
         self._save_agents()
 
