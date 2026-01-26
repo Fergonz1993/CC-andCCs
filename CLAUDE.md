@@ -89,6 +89,7 @@ MCP config for `~/.claude/mcp.json`:
 ### Option C: Orchestrator (Python)
 ```bash
 cd claude-multi-agent/option-c-orchestrator
+# Test temp files use ~/.codex/tmp/ and ~/.codex/trash/ for isolation
 
 # Setup
 python3 -m venv .venv
@@ -99,6 +100,7 @@ pip install -e ".[dev]"
 orchestrate --help
 orchestrate run "Goal" -w 3                          # Auto-plan with 3 workers
 orchestrate run "Goal" --no-plan --tasks tasks.json  # Predefined tasks
+orchestrate --json status                            # Machine-readable JSON output
 
 # Tests
 pytest                                    # All tests
@@ -142,6 +144,7 @@ Task schema requires: `id`, `description`, `status`, `priority` (1=highest). Dep
 | File-based CLI | `option-a-file-based/coordination.py` |
 | MCP server | `option-b-mcp-broker/src/index.ts` |
 | Orchestrator core | `option-c-orchestrator/src/orchestrator/orchestrator.py` |
+| Web dashboard | `extensions/web-dashboard/src/server.ts` |
 | Async orchestrator | `option-c-orchestrator/src/orchestrator/async_orchestrator.py` |
 | Task/Agent models | `option-c-orchestrator/src/orchestrator/models.py` |
 | Configuration | `option-c-orchestrator/src/orchestrator/config.py` |
